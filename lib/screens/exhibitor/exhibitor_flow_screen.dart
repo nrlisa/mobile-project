@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // <--- 1. IMPORT GO_ROUTER
 import '../../models/types.dart';
-import 'booth_selection_map.dart'; // Import the new map widget
+import 'booth_selection_map.dart'; 
 
 class ExhibitorFlowScreen extends StatefulWidget {
   const ExhibitorFlowScreen({super.key});
@@ -44,19 +45,21 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
         type: StepperType.horizontal,
         currentStep: _currentStep,
         onStepContinue: () {
+          // Validation: Must select booth in step 1
           if (_currentStep == 1 && _selectedBooth == null) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Please select a booth to continue.')),
             );
             return;
           }
+
+          // Logic to move steps or go to payment
           if (_currentStep < 2) {
             setState(() => _currentStep += 1);
           } else {
-            // Handle final step (Payment)
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Proceeding to Payment...')),
-            );
+            // --- FIX IS HERE ---
+            // Instead of just showing a message, we navigate to the payment route
+            context.push('/exhibitor/payment'); 
           }
         },
         onStepCancel: () {
@@ -76,9 +79,8 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
           ),
           Step(
             title: const Text('Booth'),
-            // Replaced placeholder with the new map widget
             content: SizedBox(
-              height: 500, // Fixed height for the map container
+              height: 500,
               child: BoothSelectionMap(
                 booths: _mockBooths,
                 onBoothSelected: (booth) {
@@ -98,12 +100,14 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Payment Confirmation Placeholder'),
+                  const Icon(Icons.payment, size: 40, color: Colors.blue),
+                  const SizedBox(height: 10),
+                  const Text('Click Continue to Pay'),
                   if (_selectedBooth != null)
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
-                        'Selected Booth: ${_selectedBooth!.id} - RM${_selectedBooth!.price.toStringAsFixed(2)}',
+                        'Total: RM${_selectedBooth!.price.toStringAsFixed(2)}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
