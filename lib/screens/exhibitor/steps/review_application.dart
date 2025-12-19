@@ -65,7 +65,7 @@ class ReviewApplication extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Start Date\n${event.date.split(' ')[0]}...', style: const TextStyle(fontSize: 14)),
-                  Text('End Date\n15 Aug...', textAlign: TextAlign.right, style: const TextStyle(fontSize: 14)),
+                  const Text('End Date\n15 Aug...', textAlign: TextAlign.right, style: TextStyle(fontSize: 14)),
                 ],
               ),
               const SizedBox(height: 16),

@@ -9,4 +9,6 @@ class Booth {
     required this.price,
     required this.status,
   });
+
+  get label => null;
 }

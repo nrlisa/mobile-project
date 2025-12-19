@@ -1,0 +1,1 @@
+enum UserRole { guest, exhibitor, admin }

@@ -24,11 +24,13 @@ class GuestScreen extends StatelessWidget {
           children: [
             const Text(
               "Welcome Guest!",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
+              style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryDark),
             ),
             const SizedBox(height: 20),
-            
-            // Event Card 1 - NOW CLICKABLE
+
             _buildEventCard(
               context,
               title: "Global Tech Expo 2025",
@@ -36,10 +38,9 @@ class GuestScreen extends StatelessWidget {
               location: "Quill City Mall",
               color: Colors.blue.shade50,
             ),
-            
+
             const SizedBox(height: 16),
 
-            // Event Card 2 - NOW CLICKABLE
             _buildEventCard(
               context,
               title: "Creative Art Expo 2025",
@@ -47,9 +48,9 @@ class GuestScreen extends StatelessWidget {
               location: "KLCC Convention Hall",
               color: Colors.purple.shade50,
             ),
-            
+
             const SizedBox(height: 40),
-            
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -63,22 +64,25 @@ class GuestScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEventCard(BuildContext context, {required String title, required String date, required String location, required Color color}) {
+  Widget _buildEventCard(
+    BuildContext context, {
+    required String title,
+    required String date,
+    required String location,
+    required Color color,
+  }) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      // InkWell makes the card respond to touches
       child: InkWell(
-        onTap: () {
-          // Navigate to Event Details (Floor Plan View)
-          context.push('/guest/details');
-        },
+        onTap: () => context.push('/guest/details'),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.5), // Using opacity to let the ripple show
+            // ignore: deprecated_member_use
+            color: color.withOpacity(0.5),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
@@ -87,7 +91,8 @@ class GuestScreen extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Row(

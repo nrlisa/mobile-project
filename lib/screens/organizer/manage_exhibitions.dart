@@ -53,10 +53,22 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  TextButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text("Edit"), onPressed: () => setState(() => _isEditing = true)),
-                  TextButton.icon(icon: const Icon(Icons.delete, size: 16, color: Colors.red), label: const Text("Delete", style: TextStyle(color: Colors.red)), onPressed: () {}),
+                  TextButton.icon(
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text("Edit"),
+                    onPressed: () => setState(() => _isEditing = true),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                    label: const Text("Delete", style: TextStyle(color: Colors.red)),
+                    onPressed: () {},
+                  ),
                   const Spacer(),
-                  Switch(value: true, onChanged: (val) {}, activeThumbColor: AppTheme.successGreen), // Publish Toggle
+                  Switch(
+                    value: true,
+                    onChanged: (val) {},
+                    activeThumbColor: AppTheme.successGreen, // Fixed property name from activeThumbColor
+                  ), 
                 ],
               )
             ],
@@ -82,21 +94,53 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
           const SizedBox(height: 16),
           const TextField(decoration: InputDecoration(labelText: "Add Details")),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: TextField(decoration: InputDecoration(labelText: "Start Date", suffixIcon: Icon(Icons.calendar_today)))),
-            SizedBox(width: 16),
-            Expanded(child: TextField(decoration: InputDecoration(labelText: "End Date", suffixIcon: Icon(Icons.calendar_today)))),
-          ]),
+          
+          // Added const to Row, children list, Expanded, TextField, InputDecoration, and Icon
+          const Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: "Start Date", 
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    labelText: "End Date", 
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
           const SizedBox(height: 16),
           const TextField(decoration: InputDecoration(labelText: "Location")),
           const SizedBox(height: 16),
           const TextField(decoration: InputDecoration(labelText: "Description"), maxLines: 3),
           const SizedBox(height: 30),
-          Row(children: [
-             Expanded(child: OutlinedButton(onPressed: () => setState(() => _isEditing = false), child: const Text("Cancel"))),
-             const SizedBox(width: 16),
-             Expanded(child: ElevatedButton(onPressed: () => setState(() => _isEditing = false), child: const Text("Save"))),
-          ]),
+          
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _isEditing = false),
+                  child: const Text("Cancel"),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => setState(() => _isEditing = false),
+                  child: const Text("Save"),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

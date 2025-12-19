@@ -11,13 +11,14 @@ class ExhibitorDashboard extends StatefulWidget {
 }
 
 class _ExhibitorDashboardState extends State<ExhibitorDashboard> {
-  // Use FutureBuilder because SQLite is one-time fetch
+  final DbService _dbService = DbService();
   late Future<List<Map<String, dynamic>>> _eventsFuture;
 
   @override
   void initState() {
     super.initState();
-    _eventsFuture = DbService().getEvents();
+    // This now calls the correct Firestore method
+    _eventsFuture = _dbService.getEvents();
   }
 
   @override
@@ -56,13 +57,19 @@ class _ExhibitorDashboardState extends State<ExhibitorDashboard> {
                 margin: const EdgeInsets.all(10),
                 child: ListTile(
                   leading: const Icon(Icons.event_available, color: Colors.blue, size: 40),
-                  title: Text(event['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("${event['location']} \nBooths available!"),
+                  title: Text(event['name'] ?? 'Unnamed Event', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("${event['location'] ?? 'No Location'} \nBooths available!"),
                   isThreeLine: true,
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
                     // Pass ID as String to keep routes simple
-                    context.push('/event/${event['id']}', extra: {'name': event['name']});
+                    context.push('/guest/details', extra: {'eventId': event['id'], 'eventName': event['name']});
+                    // Note: I updated the path to match your routes.dart '/guest/details' 
+                    // or define a specific exhibitor details route if you prefer.
+                    // If you want to use the route from your routes.dart file:
+                    // context.push('/guest/details', extra: ...); 
+                    // Just ensure your GoRouter setup expects 'extra' correctly, 
+                    // or passes it via path parameters like '/event/${event['id']}'
                   },
                 ),
               );

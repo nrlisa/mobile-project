@@ -57,7 +57,7 @@ final GoRouter router = GoRouter(
         GoRoute(
           path: 'applications',
           builder: (context, state) => MyApplications(
-            applications: [],
+            applications: const [],
             onView: (application) {},
           ),
         ),

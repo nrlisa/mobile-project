@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart'; // This works now!
-import 'package:project3_lab04_nurlisa_52215124595/services/db_service.dart';
+// REMOVED: import 'package:intl/intl.dart'; 
+import '../../services/db_service.dart'; 
 import '../../utils/app_theme.dart';
 
 class CreateEventScreen extends StatefulWidget {
@@ -13,18 +13,29 @@ class CreateEventScreen extends StatefulWidget {
 
 class _CreateEventScreenState extends State<CreateEventScreen> {
   final _formKey = GlobalKey<FormState>();
+  
+  // Controllers
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
   final _boothCountController = TextEditingController(text: "10"); 
-  
-  // URL Input for the Floor Plan
   final _imageUrlController = TextEditingController(text: "https://via.placeholder.com/800x600.png?text=Floor+Plan");
   
+  // State variables
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isLoading = false;
 
+  // Service
   final DbService _dbService = DbService();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _locationController.dispose();
+    _boothCountController.dispose();
+    _imageUrlController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate(bool isStart) async {
     final picked = await showDatePicker(
@@ -44,6 +55,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
+  // Helper method to format date without intl package
+  String _formatDate(DateTime date) {
+    return date.toIso8601String().split('T')[0]; // Returns YYYY-MM-DD
+  }
+
   void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
@@ -54,8 +70,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Create Event
-      int eventId = await _dbService.createEvent(
+      // 1. Create Event (Returns String ID from Firebase)
+      String eventId = await _dbService.createEvent(
         name: _nameController.text,
         location: _locationController.text,
         startDate: _startDate!,
@@ -64,8 +80,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       );
 
       // 2. Generate Booths
-      int count = int.parse(_boothCountController.text);
-      await _dbService.generateBooths(eventId, count);
+      int count = int.tryParse(_boothCountController.text) ?? 0;
+      if (count > 0) {
+        await _dbService.generateBooths(eventId, count);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Event Created!")));
@@ -91,6 +109,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Event Name
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Event Name", border: OutlineInputBorder()),
@@ -98,6 +117,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ),
               const SizedBox(height: 16),
               
+              // Location
               TextFormField(
                 controller: _locationController,
                 decoration: const InputDecoration(labelText: "Location", border: OutlineInputBorder()),
@@ -105,32 +125,42 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Date Pickers
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _pickDate(true),
-                      child: Text(_startDate == null ? "Start Date" : DateFormat('yyyy-MM-dd').format(_startDate!)),
+                      // CHANGED: Use _formatDate helper instead of DateFormat
+                      child: Text(_startDate == null ? "Start Date" : _formatDate(_startDate!)),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _pickDate(false),
-                      child: Text(_endDate == null ? "End Date" : DateFormat('yyyy-MM-dd').format(_endDate!)),
+                      // CHANGED: Use _formatDate helper instead of DateFormat
+                      child: Text(_endDate == null ? "End Date" : _formatDate(_endDate!)),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
 
+              // Booth Count
               TextFormField(
                 controller: _boothCountController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: "Number of Booths", border: OutlineInputBorder()),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return "Required";
+                  if (int.tryParse(v) == null) return "Must be a number";
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
+              // Image URL
               TextFormField(
                 controller: _imageUrlController,
                 decoration: const InputDecoration(
@@ -142,6 +172,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ),
               const SizedBox(height: 10),
 
+              // Image Preview
               Container(
                 height: 150,
                 color: Colors.grey[200],
@@ -156,6 +187,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
               const SizedBox(height: 24),
 
+              // Submit Button
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(

@@ -4,7 +4,6 @@ import 'utils/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // No Firebase.initializeApp() needed anymore!
   runApp(const MyApp());
 }
 
@@ -16,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Exhibition App',
       theme: AppTheme.lightTheme,
-      routerConfig: router,
+      routerConfig: router, // This handles all navigation
       debugShowCheckedModeBanner: false,
     );
   }

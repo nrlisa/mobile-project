@@ -1,69 +1,93 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'database_helper.dart';
 
 class AuthService {
-  final dbHelper = DatabaseHelper.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // We use SharedPreferences to remember who is logged in
-  Future<void> _saveSession(int userId, String role) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('userId', userId);
-    await prefs.setString('role', role);
-  }
-
-  // 1. REGISTER
+  // 1. REGISTER (Auth + Firestore for Role)
   Future<String?> register({
     required String email,
     required String password,
     required String name,
     required String role,
   }) async {
-    final db = await dbHelper.database;
     try {
-      await db.insert('users', {
+      // Create User in Firebase Auth
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Save User Data & Role to Firestore
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
         'email': email,
-        'password': password,
         'name': name,
         'role': role,
+        'createdAt': FieldValue.serverTimestamp(),
       });
+
       return null; // Success
+    } on FirebaseAuthException catch (e) {
+      return e.message;
     } catch (e) {
-      return "Email already exists or invalid data.";
+      return "An unknown error occurred.";
     }
   }
 
   // 2. LOGIN
   Future<String?> login(String email, String password) async {
-    final db = await dbHelper.database;
-    final result = await db.query(
-      'users',
-      where: 'email = ? AND password = ?',
-      whereArgs: [email, password],
-    );
+    try {
+      // Sign in with Firebase Auth
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    if (result.isNotEmpty) {
-      final user = result.first;
-      await _saveSession(user['id'] as int, user['role'] as String);
-      return null; // Success
-    } else {
-      return "Invalid email or password";
+      // Fetch Role from Firestore
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (userDoc.exists) {
+        String role = userDoc.get('role');
+        await _saveSession(userCredential.user!.uid, role);
+        return null; // Success
+      } else {
+        return "User data not found.";
+      }
+    } on FirebaseAuthException catch (e) {
+      return e.message; 
+    } catch (e) {
+      return "An error occurred during login.";
     }
+  }
+
+  // Helper: Save Session locally for quick access
+  Future<void> _saveSession(String userId, String role) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userId', userId);
+    await prefs.setString('role', role);
   }
 
   // 3. GET CURRENT USER ROLE
   Future<String> getUserRole() async {
     final prefs = await SharedPreferences.getInstance();
+    // Ideally, double-check with Firestore if sensitive, but Prefs is okay for UI routing
     return prefs.getString('role') ?? 'guest';
   }
-  
+
   // 4. GET CURRENT USER ID
-  Future<int?> getCurrentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt('userId');
+  Future<String?> getCurrentUserId() async {
+    return _auth.currentUser?.uid;
   }
 
   // 5. LOGOUT
   Future<void> logout() async {
+    await _auth.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }

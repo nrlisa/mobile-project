@@ -24,21 +24,22 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   void _refreshBooths() {
     setState(() {
-      // Parse the ID string back to an integer for SQLite
-      _boothsFuture = _dbService.getBooths(int.parse(widget.eventId));
+      // FIXED: removed int.parse(), passing String directly
+      _boothsFuture = _dbService.getBooths(widget.eventId);
     });
   }
 
   void _bookBooth(Map<String, dynamic> booth) async {
     String boothNumber = booth['boothNumber'];
-    int price = booth['price'];
+    // Handle price being int or double from Firestore
+    num priceNum = booth['price']; 
     
     // 1. Show Confirmation Dialog
     bool? confirm = await showDialog(
       context: context, 
       builder: (c) => AlertDialog(
         title: Text("Book Booth $boothNumber?"),
-        content: Text("Price: RM$price\n\nConfirm booking?"),
+        content: Text("Price: RM$priceNum\n\nConfirm booking?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
           ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text("Confirm")),
@@ -48,10 +49,13 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
     // 2. If User clicked "Confirm"
     if (confirm == true) {
-      int? userId = await AuthService().getCurrentUserId();
+      // FIXED: userId is now a String? in AuthService (Firebase)
+      String? userId = await AuthService().getCurrentUserId();
+      
       if (userId != null) {
         // Book it in the database
-        await _dbService.bookBooth(booth['id'], userId);
+        // FIXED: Added widget.eventId because Booths are a subcollection of Events
+        await _dbService.bookBooth(widget.eventId, booth['id'], userId);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -59,6 +63,12 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           );
           // Refresh the grid so the box turns RED
           _refreshBooths(); 
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Error: User not logged in"))
+          );
         }
       }
     }
@@ -75,10 +85,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             height: 100,
             width: double.infinity,
             color: Colors.grey[200],
-            child: Center(
+            child: const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.map, size: 30, color: Colors.grey),
                   Text("Venue Map Reference"),
                   SizedBox(height: 5),
@@ -98,14 +108,15 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: _boothsFuture,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 
-                var booths = snapshot.data!;
-                if (booths.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(child: Text("No booths generated for this event."));
                 }
+                
+                var booths = snapshot.data!;
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
