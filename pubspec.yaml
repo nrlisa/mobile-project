@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.0.0
 
 dependencies:
   flutter:
@@ -21,6 +21,9 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.4
   google_fonts: ^6.3.3
+  image_picker: ^1.2.1
+  intl: ^0.20.2
+  sqflite_common_ffi_web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

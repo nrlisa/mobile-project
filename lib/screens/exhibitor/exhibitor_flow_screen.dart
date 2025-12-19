@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // <--- 1. IMPORT GO_ROUTER
+import 'package:go_router/go_router.dart'; // REQUIRED for navigation
 import '../../models/types.dart';
 import 'booth_selection_map.dart'; 
+import '../../components/app_drawer.dart'; 
 
 class ExhibitorFlowScreen extends StatefulWidget {
   const ExhibitorFlowScreen({super.key});
@@ -41,11 +42,14 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
       appBar: AppBar(
         title: const Text('Application Flow'),
       ),
+      // This puts the drawer on the RIGHT side
+      endDrawer: const AppDrawer(role: 'Exhibitor'), 
+      
       body: Stepper(
         type: StepperType.horizontal,
         currentStep: _currentStep,
         onStepContinue: () {
-          // Validation: Must select booth in step 1
+          // Validation: Booth must be selected in Step 1
           if (_currentStep == 1 && _selectedBooth == null) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Please select a booth to continue.')),
@@ -53,12 +57,12 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
             return;
           }
 
-          // Logic to move steps or go to payment
           if (_currentStep < 2) {
+            // Move to next step (0 -> 1 -> 2)
             setState(() => _currentStep += 1);
           } else {
-            // --- FIX IS HERE ---
-            // Instead of just showing a message, we navigate to the payment route
+            // --- CRITICAL FIX ---
+            // This actually opens the Payment Screen
             context.push('/exhibitor/payment'); 
           }
         },
@@ -73,14 +77,14 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
             content: Container(
               height: 200,
               alignment: Alignment.center,
-              child: const Text('Form Details Placeholder'),
+              child: const Text('Form Details (Enter Info Here)'),
             ),
             isActive: _currentStep >= 0,
           ),
           Step(
             title: const Text('Booth'),
             content: SizedBox(
-              height: 500,
+              height: 400,
               child: BoothSelectionMap(
                 booths: _mockBooths,
                 onBoothSelected: (booth) {
@@ -100,16 +104,14 @@ class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.payment, size: 40, color: Colors.blue),
-                  const SizedBox(height: 10),
-                  const Text('Click Continue to Pay'),
+                  const Icon(Icons.payment, size: 50, color: Colors.blue),
+                  const SizedBox(height: 16),
+                  const Text('Review Selection & Pay'),
                   if (_selectedBooth != null)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Total: RM${_selectedBooth!.price.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                    Text(
+                      'Booth: ${_selectedBooth!.id}\nTotal: RM${_selectedBooth!.price.toStringAsFixed(2)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                 ],
               ),

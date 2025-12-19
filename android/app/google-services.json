@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "771992959286",
+    "project_id": "exhibition-app-nurlisa",
+    "storage_bucket": "exhibition-app-nurlisa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:771992959286:android:3d4e08774170025ec01b97",
+        "android_client_info": {
+          "package_name": "com.example.project3_lab04_nurlisa_52215124595"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNhFhhXsdIyXICPobeF_RmKw8FYVJ1DJw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

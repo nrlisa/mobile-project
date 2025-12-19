@@ -1,6 +1,6 @@
-// Make sure this line exists and is correct:
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../utils/app_theme.dart';
 
 class OrganizerDashboard extends StatelessWidget {
   const OrganizerDashboard({super.key});
@@ -17,42 +17,39 @@ class OrganizerDashboard extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              "Welcome, Organizer!",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              "Organizer Dashboard",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
             ),
             const SizedBox(height: 30),
-            
-            // Manage Exhibitions Button
-            ElevatedButton.icon(
-              onPressed: () {
-                // Navigate to manage exhibitions (future feature)
-              },
-              icon: const Icon(Icons.event),
-              label: const Text("Manage Exhibitions"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-              ),
-            ),
-            
-            const SizedBox(height: 20),
 
-            // UPLOAD FLOORPLAN BUTTON (Required for your demo)
-            ElevatedButton.icon(
-              onPressed: () => context.push('/organizer/upload'),
-              icon: const Icon(Icons.map, color: Colors.white),
-              label: const Text("Upload Floorplan", style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A90E2),
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-              ),
-            ),
+            // Navigation Buttons matching Wireframe Page 5
+            _buildMenuButton(context, "Manage Exhibitions", Icons.event_note, '/organizer/exhibitions'),
+            const SizedBox(height: 16),
+            _buildMenuButton(context, "Manage Booth Types / Prices", Icons.storefront, '/organizer/booths'),
+            const SizedBox(height: 16),
+            _buildMenuButton(context, "View Applications", Icons.assignment_ind, '/organizer/applications'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMenuButton(BuildContext context, String title, IconData icon, String route) {
+    return ElevatedButton.icon(
+      onPressed: () => context.push(route),
+      icon: Icon(icon, size: 28),
+      label: Text(title, style: const TextStyle(fontSize: 18)),
+      style: ElevatedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+        backgroundColor: AppTheme.primaryBlue,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

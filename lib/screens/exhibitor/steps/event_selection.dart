@@ -41,7 +41,7 @@ class EventSelection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: events.length, 
             // FIXED: Removed double underscore
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
               final event = events[index];
               return GestureDetector(
