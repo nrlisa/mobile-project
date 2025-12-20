@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/db_service.dart';
 import '../../models/event_model.dart';
-// Ensure this exists for styling
 
 class GuestHomeScreen extends StatelessWidget {
   const GuestHomeScreen({super.key});
@@ -15,7 +14,6 @@ class GuestHomeScreen extends StatelessWidget {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         actions: [
-          // FIXED: Login button instead of logout for guests
           TextButton(
             onPressed: () => context.go('/login'),
             child: const Text(
@@ -44,7 +42,7 @@ class GuestHomeScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 24, 
                     fontWeight: FontWeight.bold,
-                    color: Colors.black, // Or AppTheme.primaryDark if defined
+                    color: Colors.black,
                   ),
                 ),
                 SizedBox(height: 5),
@@ -65,6 +63,7 @@ class GuestHomeScreen extends StatelessWidget {
           ),
 
           // 2. The Dynamic List (StreamBuilder)
+          // This stream only shows events where 'isPublished' is true
           Expanded(
             child: StreamBuilder<List<EventModel>>(
               stream: DbService().getGuestEvents(), 
@@ -84,8 +83,11 @@ class GuestHomeScreen extends StatelessWidget {
                       children: [
                         Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
                         const SizedBox(height: 10),
-                        const Text("No upcoming exhibitions found.",
-                            style: TextStyle(color: Colors.grey)),
+                        const Text(
+                          "No published exhibitions available at the moment.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ],
                     ),
                   );
@@ -103,24 +105,12 @@ class GuestHomeScreen extends StatelessWidget {
               },
             ),
           ),
-          
-          // Optional: "Next" button from your design if needed
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => context.push('/guest/details'),
-                child: const Text("View General Details"),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  // Helper widget to build the card UI with your opacity design
+  // Helper widget to build the card UI
   Widget _buildEventCard(BuildContext context, EventModel event) {
     return Card(
       elevation: 2,
@@ -140,8 +130,7 @@ class GuestHomeScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            // Uses the light blue background from your design
-            color: Colors.blue.shade50.withValues(alpha:.5),
+            color: Colors.blue.shade50.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),

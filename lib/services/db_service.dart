@@ -5,71 +5,100 @@ import '../models/event_model.dart';
 class DbService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // --- 1. ADD EXHIBITION (Organizer Page 7) ---
+  // --- GLOBAL STATIC VARIABLE ---
+  // Stays in memory to track the most recently created event ID
+  static String? currentEventId;
+
+  // --- 1. ADD/UPDATE EXHIBITION ---
+  // Standardized to link events directly via the organizer's UID string
   Future<void> addEvent(EventModel event) async {
     try {
-      await _firestore.collection('events').doc(event.id).set(event.toJson());
-      debugPrint("✅ Event Added/Updated: ${event.name}");
+      // Standardized: We use the UID string passed in organizerId directly [Inference]
+      // This ensures the "vILKJ3YVHFUfGrnpJ6NDiH1G4VY2" ID is used consistently [Inference]
+      final updatedEvent = EventModel(
+        id: event.id,
+        name: event.name,
+        location: event.location,
+        date: event.date,
+        description: event.description,
+        isPublished: event.isPublished,
+        organizerId: event.organizerId, 
+      );
+
+      // Store the event ID in global memory for immediate use in booth creation
+      currentEventId = updatedEvent.id;
+      
+      await _firestore.collection('events').doc(updatedEvent.id).set(updatedEvent.toJson());
+      debugPrint("✅ Event Saved for Organizer UID: ${updatedEvent.organizerId}");
     } catch (e) {
       debugPrint("❌ Error adding event: $e");
       rethrow;
     }
   }
 
-  // --- 2. PHASE 3 - SAVE BOOTH TYPES (Organizer Page 8) ---
-  Future<void> addBoothType(String eventId, Map<String, dynamic> boothData) async {
-    // Safety check: Don't attempt to save if the eventId is empty
-    if (eventId.isEmpty) return;
+  // --- 2. SAVE BOOTH TYPES ---
+  Future<void> addBoothType(String? eventId, Map<String, dynamic> boothData) async {
+    final String idToUse = (eventId == null || eventId.isEmpty) 
+        ? (currentEventId ?? "") 
+        : eventId;
+
+    if (idToUse.isEmpty) {
+      debugPrint("⚠️ addBoothType failed: No ID found in pass or memory");
+      return;
+    }
+    
     try {
+      // Adds booth types to a sub-collection under the specific event
       await _firestore
           .collection('events')
-          .doc(eventId)
+          .doc(idToUse)
           .collection('booth_types')
           .add(boothData);
-      debugPrint("✅ Booth Type Added specifically to Event: $eventId");
+      debugPrint("✅ Booth added to event: $idToUse");
     } catch (e) {
-      debugPrint("❌ Error adding booth type: $e");
       rethrow;
     }
   }
 
-  // --- 3. PHASE 4 - EXHIBITOR READS BOOTHS (Exhibitor Page 13) ---
-  // FIXED: Returns an empty stream if eventId is empty to prevent red screen error
-  Stream<QuerySnapshot> getBoothsForEvent(String eventId) {
-    if (eventId.isEmpty) {
-      return const Stream.empty();
+  // --- 3. READ BOOTHS ---
+  Stream<QuerySnapshot> getBoothsForEvent(String? eventId) {
+    final String idToUse = (eventId == null || eventId.isEmpty) 
+        ? (currentEventId ?? "") 
+        : eventId;
+
+    if (idToUse.isEmpty) {
+      debugPrint("⚠️ getBoothsForEvent: No ID found.");
+      return const Stream.empty(); 
     }
+
     return _firestore
         .collection('events')
-        .doc(eventId)
+        .doc(idToUse)
         .collection('booth_types')
         .snapshots();
   }
 
-  // --- 4. GUEST & EXHIBITOR SELECT EVENT (Page 1 & Page 12) ---
-  // Fetches only exhibitions marked as "Published"
+  // --- 4. GUEST & EXHIBITOR PUBLIC VIEW ---
+  // Only shows events where the Organizer has toggled the "Publish" slider to ON
   Stream<List<EventModel>> getGuestEvents() {
     return _firestore
         .collection('events')
         .where('isPublished', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return EventModel.fromJson(doc.data());
-      }).toList();
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
     });
   }
 
-  // --- 5. GET ORGANIZER EVENTS (Organizer Page 6) ---
+  // --- 5. GET ORGANIZER DASHBOARD EVENTS ---
+  // Standardized: Queries Firestore using the UID string [Inference]
   Stream<List<EventModel>> getOrganizerEvents(String organizerId) {
     return _firestore
         .collection('events')
         .where('organizerId', isEqualTo: organizerId)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return EventModel.fromJson(doc.data());
-      }).toList();
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
     });
   }
 
@@ -77,14 +106,13 @@ class DbService {
   Future<void> deleteEvent(String eventId) async {
     try {
       await _firestore.collection('events').doc(eventId).delete();
-      debugPrint("✅ Event $eventId deleted from Firebase");
+      if (currentEventId == eventId) currentEventId = null;
     } catch (e) {
-      debugPrint("❌ Error deleting event: $e");
       rethrow;
     }
   }
 
-  // --- 6. FLOORPLAN & MISC METHODS ---
+  // --- 6. FLOORPLAN & LAYOUT METHODS ---
   Future<void> saveFloorplanLayout(String eventId, List<Map<String, dynamic>> layout) async {
     try {
       await _firestore.collection('events').doc(eventId).set({
@@ -109,20 +137,7 @@ class DbService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getEvents() async {
-    try {
-      final snapshot = await _firestore.collection('events').get();
-      return snapshot.docs.map((doc) => doc.data()).toList();
-    } catch (e) {
-      return []; 
-    }
-  }
-
-  Future<void> generateBooths(String eventId, int count) async {
-    debugPrint("Generating $count booths for $eventId");
-  }
-
-  // --- 7. CREATE EVENT (Alternate method) ---
+  // --- 7. CREATE EVENT (MANUAL ENTRY) ---
   Future<String> createEvent({
     required String name, 
     required String location, 
@@ -132,6 +147,8 @@ class DbService {
   }) async {
     try {
       final docRef = _firestore.collection('events').doc();
+      currentEventId = docRef.id;
+      
       await docRef.set({
         'id': docRef.id,
         'name': name,
@@ -142,11 +159,21 @@ class DbService {
         'createdAt': FieldValue.serverTimestamp(),
         'isPublished': false,
       });
-      debugPrint("✅ Event Created: ${docRef.id}");
       return docRef.id;
     } catch (e) {
-      debugPrint("❌ Error creating event: $e");
       rethrow;
+    }
+  }
+
+  Future<void> generateBooths(String eventId, int count) async {}
+
+  Future<List<Map<String, dynamic>>> getEvents() async {
+    try {
+      final snapshot = await _firestore.collection('events').get();
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      debugPrint("❌ Error getting events: $e");
+      return [];
     }
   }
 }

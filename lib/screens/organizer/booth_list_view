@@ -1,0 +1,93 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/db_service.dart';
+import '../../services/auth_service.dart';
+import '../../models/event_model.dart';
+
+class OrganizerBoothListView extends StatelessWidget {
+  const OrganizerBoothListView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final DbService _dbService = DbService();
+    final AuthService _authService = AuthService();
+    // Standardized: Get your UID string immediately [Inference]
+    final String currentUid = _authService.currentUser?.uid ?? "";
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Designated Booth List"), centerTitle: true),
+      body: currentUid.isEmpty 
+        ? const Center(child: Text("User not logged in"))
+        : StreamBuilder<List<EventModel>>(
+            // Automatically finds any event with your UID string [Inference]
+            stream: _dbService.getOrganizerEvents(currentUid), 
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              
+              final events = snapshot.data ?? [];
+
+              if (events.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.event_note, size: 80, color: Colors.grey),
+                      const SizedBox(height: 10),
+                      const Text("No exhibitions found.", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Searching for ID: $currentUid", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: events.length,
+                itemBuilder: (context, index) {
+                  final event = events[index];
+                  return Card(
+                    margin: const EdgeInsets.all(8),
+                    child: ExpansionTile(
+                      title: Text(event.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                      subtitle: Text(event.location),
+                      children: [_buildBoothTable(event.id, _dbService)],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+    );
+  }
+
+  Widget _buildBoothTable(String eventId, DbService db) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: db.getBoothsForEvent(eventId),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) return const Padding(padding: EdgeInsets.all(8.0), child: Text("No booths added."));
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade300),
+            children: [
+              const TableRow(decoration: BoxDecoration(color: Color(0xFFEEEEEE)), children: [
+                Padding(padding: EdgeInsets.all(8), child: Text("Type")),
+                Padding(padding: EdgeInsets.all(8), child: Text("Price")),
+                Padding(padding: EdgeInsets.all(8), child: Text("Slots")),
+              ]),
+              ...docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return TableRow(children: [
+                  Padding(padding: const EdgeInsets.all(8), child: Text(data['type'] ?? "")),
+                  Padding(padding: const EdgeInsets.all(8), child: Text("RM ${data['price']}")),
+                  Padding(padding: const EdgeInsets.all(8), child: Text(data['slots'] ?? "")),
+                ]);
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
