@@ -117,4 +117,36 @@ class DbService {
   Future<void> generateBooths(String eventId, int count) async {
     debugPrint("Generating $count booths for $eventId");
   }
+  // --- 7. GUEST VIEW EVENTS (Guest Home Screen) ---
+Stream<List<EventModel>> getGuestEvents() {
+  return _firestore
+      .collection('events')
+      .where('isPublished', isEqualTo: true)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.docs.map((doc) {
+      return EventModel.fromJson(doc.data());
+    }).toList();
+  });
+}
+
+  Future<String> createEvent({required String name, required String location, required DateTime startDate, required DateTime endDate, required String floorPlanUrl}) async {
+    try {
+      final eventId = _firestore.collection('events').doc().id;
+      await _firestore.collection('events').doc(eventId).set({
+        'name': name,
+        'location': location,
+        'startDate': startDate,
+        'endDate': endDate,
+        'floorPlanUrl': floorPlanUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint("✅ Event Created: $eventId");
+      return eventId;
+    } catch (e) {
+      debugPrint("❌ Error creating event: $e");
+      rethrow;
+    }
+  }
+
 }

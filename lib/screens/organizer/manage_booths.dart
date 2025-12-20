@@ -122,7 +122,7 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
                     Padding(padding: const EdgeInsets.all(8.0), child: Text("RM ${data['price']}")),
                     Padding(padding: const EdgeInsets.all(8.0), child: Text(data['slots'] ?? "0")),
                   ]);
-                }).toList(),
+                }),
               ],
             );
           }

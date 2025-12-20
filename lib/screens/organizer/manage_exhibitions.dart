@@ -22,8 +22,8 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
   final _descController = TextEditingController();
   
   // Removed final to allow updates from Date Pickers if you implement them
-  DateTime _startDate = DateTime.now();
-  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
+  final DateTime _startDate = DateTime.now();
+  final DateTime _endDate = DateTime.now().add(const Duration(days: 1));
 
   @override
   Widget build(BuildContext context) {
