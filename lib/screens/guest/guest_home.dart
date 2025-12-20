@@ -29,7 +29,6 @@ class GuestHomeScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Header Section
           Container(
             padding: const EdgeInsets.all(20),
             color: Colors.blue.shade50,
@@ -53,7 +52,20 @@ class GuestHomeScreen extends StatelessWidget {
               ],
             ),
           ),
-
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Search...", 
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+          ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
             child: Text(
@@ -61,9 +73,6 @@ class GuestHomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
-
-          // 2. The Dynamic List (StreamBuilder)
-          // This stream only shows events where 'isPublished' is true
           Expanded(
             child: StreamBuilder<List<EventModel>>(
               stream: DbService().getGuestEvents(), 
@@ -110,7 +119,6 @@ class GuestHomeScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget to build the card UI
   Widget _buildEventCard(BuildContext context, EventModel event) {
     return Card(
       elevation: 2,
@@ -119,7 +127,8 @@ class GuestHomeScreen extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          context.push(
+          // UPDATED: Navigates using context.go with the required extra data
+          context.go(
             '/floorplan-viewer', 
             extra: {
               'eventId': event.id,

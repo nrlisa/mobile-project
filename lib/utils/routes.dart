@@ -1,10 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:project3_lab04_nurlisa_52215124595/screens/guest/guest_home.dart';
 
 // AUTH & GUEST IMPORTS
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
+import '../screens/guest/guest_home.dart';
 import '../screens/guest/event_details.dart';
+import '../screens/guest/guest_floorplan_viewer.dart'; // [Inference] Imported the Read-Only viewer
 
 // EXHIBITOR IMPORTS
 import '../screens/exhibitor/exhibitor_dashboard.dart';
@@ -17,7 +19,7 @@ import '../screens/organizer/manage_exhibitions.dart';
 import '../screens/organizer/manage_booths.dart';      
 import '../screens/organizer/organizer_applications.dart'; 
 import '../screens/organizer/floorplan_upload.dart';   
-import '../screens/organizer/add_event_screen.dart'; // Added: Needed for Page 7
+import '../screens/organizer/add_event_screen.dart'; 
 
 // ADMIN IMPORTS
 import '../screens/admin/admin_dashboard.dart';
@@ -26,7 +28,22 @@ import '../screens/admin/global_exhibitions.dart';
 import '../screens/admin/admin_floorplan.dart';
 
 final GoRouter router = GoRouter(
-  initialLocation: '/guest', // Start app as Guest
+  initialLocation: '/guest', 
+  
+  // FIXED: Redirect root "/" to "/guest" to prevent the logout crash
+  redirect: (context, state) {
+    if (state.uri.toString() == '/') {
+      return '/guest'; 
+    }
+    return null;
+  },
+
+  errorBuilder: (context, state) => Scaffold(
+    body: Center(
+      child: Text("Route not found: ${state.uri}\nTry using a leading slash (/) in your navigation."),
+    ),
+  ),
+
   routes: [
     // --- AUTH & GUEST ---
     GoRoute(
@@ -39,12 +56,27 @@ final GoRouter router = GoRouter(
     ),
     GoRoute(
       path: '/guest',
-      // FIX: Ensure this matches the class name in guest_home.dart (GuestHomeScreen)
       builder: (context, state) => const GuestHomeScreen(), 
     ),
     GoRoute(
-      path: '/guest/details',
-      builder: (context, state) => const EventDetailsScreen(eventId: '',),
+      path: '/guest/details/:eventId',
+      builder: (context, state) {
+        final id = state.pathParameters['eventId'] ?? '';
+        return EventDetailsScreen(eventId: id);
+      },
+    ),
+
+    // FIXED: Route for floorplan-viewer now uses the Read-Only viewer
+    GoRoute(
+      path: '/floorplan-viewer',
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>? ?? 
+            {'eventId': 'default', 'eventName': 'Exhibition'};
+        return GuestFloorplanViewer( // Use the simple view without buttons [Inference]
+          eventId: args['eventId'],
+          eventName: args['eventName'],
+        );
+      },
     ),
 
     // --- EXHIBITOR ROUTES ---
@@ -77,7 +109,7 @@ final GoRouter router = GoRouter(
         ),
         GoRoute(
           path: 'booths',
-          builder: (context, state) => const ManageBoothsScreen(eventId: '',),
+          builder: (context, state) => const ManageBoothsScreen(eventId: ''),
         ),
         GoRoute(
           path: 'applications',
@@ -87,7 +119,6 @@ final GoRouter router = GoRouter(
           path: 'upload',
           builder: (context, state) => const FloorplanUploadScreen(),
         ),
-        // ADDED: Route for your Page 7 Create Exhibition
         GoRoute(
           path: 'add-event',
           builder: (context, state) => const AddEventScreen(),
@@ -102,18 +133,17 @@ final GoRouter router = GoRouter(
       routes: [
         GoRoute(
           path: 'users',
-          builder: (context, state) => const UserManagementScreen(),
+          builder: (context, state) => UserManagementScreen(),
         ),
         GoRoute(
           path: 'global-exhibitions',
           builder: (context, state) => const GlobalExhibitionsScreen(),
         ),
-        // FIX: Added data handling for the Floorplan Editor
         GoRoute(
           path: 'floorplan',
           builder: (context, state) {
             final args = state.extra as Map<String, dynamic>? ?? 
-                {'eventId': 'default_event', 'eventName': 'Exhibition'};
+                {'eventId': 'default', 'eventName': 'Exhibition'};
             return AdminFloorplanScreen(
               eventId: args['eventId'],
               eventName: args['eventName'],
@@ -124,7 +154,3 @@ final GoRouter router = GoRouter(
     ),
   ],
 );
-
-class GuestHome {
-  const GuestHome();
-}

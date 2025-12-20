@@ -1,108 +1,36 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/event_model.dart';
 
 class DbService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // --- GLOBAL STATIC VARIABLE ---
-  // Stays in memory to track the most recently created event ID
   static String? currentEventId;
 
-  // --- 1. ADD/UPDATE EXHIBITION ---
-  // Standardized to link events directly via the organizer's UID string
+  // --- 1. EXHIBITION MANAGEMENT (ADMIN & ORGANIZER) ---
+
   Future<void> addEvent(EventModel event) async {
     try {
-      // Standardized: We use the UID string passed in organizerId directly [Inference]
-      // This ensures the "vILKJ3YVHFUfGrnpJ6NDiH1G4VY2" ID is used consistently [Inference]
-      final updatedEvent = EventModel(
-        id: event.id,
-        name: event.name,
-        location: event.location,
-        date: event.date,
-        description: event.description,
-        isPublished: event.isPublished,
-        organizerId: event.organizerId, 
-      );
-
-      // Store the event ID in global memory for immediate use in booth creation
-      currentEventId = updatedEvent.id;
-      
-      await _firestore.collection('events').doc(updatedEvent.id).set(updatedEvent.toJson());
-      debugPrint("✅ Event Saved for Organizer UID: ${updatedEvent.organizerId}");
+      currentEventId = event.id;
+      await _firestore.collection('events').doc(event.id).set(event.toJson());
+      debugPrint("✅ Event Saved: ${event.name}");
     } catch (e) {
-      debugPrint("❌ Error adding event: $e");
       rethrow;
     }
   }
 
-  // --- 2. SAVE BOOTH TYPES ---
-  Future<void> addBoothType(String? eventId, Map<String, dynamic> boothData) async {
-    final String idToUse = (eventId == null || eventId.isEmpty) 
-        ? (currentEventId ?? "") 
-        : eventId;
-
-    if (idToUse.isEmpty) {
-      debugPrint("⚠️ addBoothType failed: No ID found in pass or memory");
-      return;
-    }
-    
+  // FIXED: Method to update exhibition details
+  Future<void> updateEvent(String eventId, Map<String, dynamic> updatedData) async {
     try {
-      // Adds booth types to a sub-collection under the specific event
-      await _firestore
-          .collection('events')
-          .doc(idToUse)
-          .collection('booth_types')
-          .add(boothData);
-      debugPrint("✅ Booth added to event: $idToUse");
+      await _firestore.collection('events').doc(eventId).update(updatedData);
     } catch (e) {
       rethrow;
     }
   }
 
-  // --- 3. READ BOOTHS ---
-  Stream<QuerySnapshot> getBoothsForEvent(String? eventId) {
-    final String idToUse = (eventId == null || eventId.isEmpty) 
-        ? (currentEventId ?? "") 
-        : eventId;
-
-    if (idToUse.isEmpty) {
-      debugPrint("⚠️ getBoothsForEvent: No ID found.");
-      return const Stream.empty(); 
-    }
-
-    return _firestore
-        .collection('events')
-        .doc(idToUse)
-        .collection('booth_types')
-        .snapshots();
-  }
-
-  // --- 4. GUEST & EXHIBITOR PUBLIC VIEW ---
-  // Only shows events where the Organizer has toggled the "Publish" slider to ON
-  Stream<List<EventModel>> getGuestEvents() {
-    return _firestore
-        .collection('events')
-        .where('isPublished', isEqualTo: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
-    });
-  }
-
-  // --- 5. GET ORGANIZER DASHBOARD EVENTS ---
-  // Standardized: Queries Firestore using the UID string [Inference]
-  Stream<List<EventModel>> getOrganizerEvents(String organizerId) {
-    return _firestore
-        .collection('events')
-        .where('organizerId', isEqualTo: organizerId)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
-    });
-  }
-
-  // Function to delete an exhibition
   Future<void> deleteEvent(String eventId) async {
     try {
       await _firestore.collection('events').doc(eventId).delete();
@@ -112,13 +40,45 @@ class DbService {
     }
   }
 
-  // --- 6. FLOORPLAN & LAYOUT METHODS ---
-  Future<void> saveFloorplanLayout(String eventId, List<Map<String, dynamic>> layout) async {
+  // --- 2. USER MANAGEMENT (ADMIN ROLE) ---
+
+  // Fetches all users for the Admin Dashboard [Inference]
+  Stream<QuerySnapshot> getAllUsers() {
+    return _firestore.collection('users').snapshots();
+  }
+
+  // Updates user roles or information [Inference]
+  Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
-      await _firestore.collection('events').doc(eventId).set({
-        'layout': layout,
+      await _firestore.collection('users').doc(userId).update(userData);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Deletes a user from Firestore [Inference]
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _firestore.collection('users').doc(userId).delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // --- 3. GLOBAL FLOORPLAN (BASE64 METHOD) ---
+
+  Future<void> saveFloorplanLayout(String eventId, XFile imageFile) async {
+    try {
+      Uint8List imageBytes = await imageFile.readAsBytes();
+      String base64Image = base64Encode(imageBytes);
+
+      await _firestore.collection('settings').doc('global_config').set({
+        'sharedLayout': [
+          {'imageUrl': 'data:image/png;base64,$base64Image'}
+        ], 
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      debugPrint("✅ Base64 Image saved to Firestore");
     } catch (e) {
       rethrow;
     }
@@ -126,10 +86,10 @@ class DbService {
 
   Future<List<dynamic>> getFloorplanLayout(String eventId) async {
     try {
-      DocumentSnapshot doc = await _firestore.collection('events').doc(eventId).get();
+      DocumentSnapshot doc = await _firestore.collection('settings').doc('global_config').get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data() as Map<String, dynamic>;
-        return data['layout'] as List<dynamic>? ?? [];
+        return data['sharedLayout'] as List<dynamic>? ?? [];
       }
       return [];
     } catch (e) {
@@ -137,7 +97,9 @@ class DbService {
     }
   }
 
-  // --- 7. CREATE EVENT (MANUAL ENTRY) ---
+  // --- 4. EVENT CREATION & BOOTH GENERATION ---
+
+  // FIXED: Now ensures a String is always returned or an error is thrown
   Future<String> createEvent({
     required String name, 
     required String location, 
@@ -155,25 +117,74 @@ class DbService {
         'location': location,
         'startDate': startDate,
         'endDate': endDate,
-        'floorPlanUrl': floorPlanUrl,
+        'floorPlanUrl': floorPlanUrl, 
         'createdAt': FieldValue.serverTimestamp(),
         'isPublished': false,
       });
-      return docRef.id;
+      return docRef.id; 
+    } catch (e) {
+      debugPrint("❌ Create Event Error: $e");
+      throw Exception("Could not create event: $e");
+    }
+  }
+
+  // FIXED: Implemented the missing generateBooths method
+  Future<void> generateBooths(String eventId, int count) async {
+    try {
+      final batch = _firestore.batch();
+      for (int i = 1; i <= count; i++) {
+        final boothRef = _firestore
+            .collection('events')
+            .doc(eventId)
+            .collection('booths')
+            .doc();
+            
+        batch.set(boothRef, {
+          'boothNumber': 'B$i',
+          'status': 'available',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<void> generateBooths(String eventId, int count) async {}
+  // --- 5. DATA RETRIEVAL ---
 
   Future<List<Map<String, dynamic>>> getEvents() async {
     try {
       final snapshot = await _firestore.collection('events').get();
       return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      debugPrint("❌ Error getting events: $e");
       return [];
     }
+  }
+
+  Stream<List<EventModel>> getGuestEvents() {
+    return _firestore.collection('events').where('isPublished', isEqualTo: true).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
+    });
+  }
+
+  Stream<List<EventModel>> getOrganizerEvents(String organizerId) {
+    return _firestore.collection('events').where('organizerId', isEqualTo: organizerId).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
+    });
+  }
+
+  Future<void> addBoothType(String? eventId, Map<String, dynamic> boothData) async {
+    final String idToUse = (eventId == null || eventId.isEmpty) ? (currentEventId ?? "") : eventId;
+    if (idToUse.isEmpty) return;
+    try {
+      await _firestore.collection('events').doc(idToUse).collection('booth_types').add(boothData);
+    } catch (e) { rethrow; }
+  }
+
+  Stream<QuerySnapshot> getBoothsForEvent(String? eventId) {
+    final String idToUse = (eventId == null || eventId.isEmpty) ? (currentEventId ?? "") : eventId;
+    if (idToUse.isEmpty) return const Stream.empty(); 
+    return _firestore.collection('events').doc(idToUse).collection('booth_types').snapshots();
   }
 }

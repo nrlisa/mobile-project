@@ -1,51 +1,160 @@
 import 'package:flutter/material.dart';
+import '../../services/db_service.dart';
+import 'admin_floorplan.dart';
 
-class GlobalExhibitionsScreen extends StatelessWidget {
+class GlobalExhibitionsScreen extends StatefulWidget {
   const GlobalExhibitionsScreen({super.key});
+
+  @override
+  State<GlobalExhibitionsScreen> createState() => _GlobalExhibitionsScreenState();
+}
+
+class _GlobalExhibitionsScreenState extends State<GlobalExhibitionsScreen> {
+  final DbService _dbService = DbService();
+
+  // Function to refresh UI after deletion or update
+  void _refresh() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Global Exhibitions")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-             Table(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2), 2: FlexColumnWidth(1.5)},
-              children: const [
-                TableRow(
-                  decoration: BoxDecoration(color: Color(0xFFEEEEEE)),
-                  children: [
-                    Padding(padding: EdgeInsets.all(8), child: Text("ID", style: TextStyle(fontWeight: FontWeight.bold))),
-                    Padding(padding: EdgeInsets.all(8), child: Text("Name / Loc", style: TextStyle(fontWeight: FontWeight.bold))),
-                    Padding(padding: EdgeInsets.all(8), child: Text("Date", style: TextStyle(fontWeight: FontWeight.bold))),
-                  ]
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _dbService.getEvents(), 
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
+
+          final events = snapshot.data ?? [];
+
+          if (events.isEmpty) {
+            return const Center(child: Text("No exhibitions found."));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: events.length,
+            itemBuilder: (context, index) {
+              final event = events[index];
+              final String eventId = event['id'] ?? "";
+              final String eventName = event['name'] ?? "Unnamed Exhibition";
+              final String location = event['location'] ?? "No Location";
+              final bool isPublished = event['isPublished'] ?? false;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  title: Text(eventName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("$location\nStatus: ${isPublished ? 'Published' : 'Draft'}"),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // EDIT BUTTON: Metadata
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.orange),
+                        tooltip: 'Edit Details',
+                        onPressed: () => _showEditEventDialog(context, eventId, event),
+                      ),
+                      // MAP BUTTON: Floorplan
+                      IconButton(
+                        icon: const Icon(Icons.map, color: Colors.blue),
+                        tooltip: 'Edit Floorplan',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdminFloorplanScreen(
+                              eventId: eventId,
+                              eventName: eventName,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // DELETE BUTTON
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Delete Exhibition',
+                        onPressed: () => _confirmDelete(context, eventId),
+                      ),
+                    ],
+                  ),
                 ),
-                TableRow(children: [
-                  Padding(padding: EdgeInsets.all(8), child: Text("Expo01")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("Tech Expo 2026\n(KLCC)")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("12.5.2026\n-\n14.5.2026")),
-                ]),
-                TableRow(children: [
-                  Padding(padding: EdgeInsets.all(8), child: Text("Expo02")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("Fun Fiesta 2026\n(TRX)")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("22.9.2026\n-\n25.9.2026")),
-                ]),
-              ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // Dialog to edit Exhibition Name and Status
+  void _showEditEventDialog(BuildContext context, String id, Map data) {
+    final nameController = TextEditingController(text: data['name']);
+    bool publishedStatus = data['isPublished'] ?? false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Edit Exhibition"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Exhibition Name"),
+              ),
+              SwitchListTile(
+                title: const Text("Published"),
+                value: publishedStatus,
+                onChanged: (val) => setDialogState(() => publishedStatus = val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () async {
+                await _dbService.updateEvent(id, {
+                  'name': nameController.text,
+                  'isPublished': publishedStatus,
+                });
+                if (context.mounted) Navigator.pop(context);
+                _refresh(); // UI update
+              },
+              child: const Text("Save"),
             ),
-             const SizedBox(height: 20),
-             SizedBox(
-               width: double.infinity,
-               child: ElevatedButton.icon(
-                 onPressed: () {},
-                 icon: const Icon(Icons.add),
-                 label: const Text("Add New Global Exhibition"),
-               ),
-             )
           ],
         ),
+      ),
+    );
+  }
+
+  // Confirmation before permanent deletion
+  void _confirmDelete(BuildContext context, String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Exhibition?"),
+        content: const Text("This will permanently remove this event record."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await _dbService.deleteEvent(id);
+              if (context.mounted) Navigator.pop(context);
+              _refresh(); // UI update
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

@@ -1,51 +1,144 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/db_service.dart';
 
 class UserManagementScreen extends StatelessWidget {
-  const UserManagementScreen({super.key});
+  UserManagementScreen({super.key});
+
+  final DbService _dbService = DbService();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("User Management")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Table(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(2), 2: FlexColumnWidth(1)},
-              children: const [
-                TableRow(
-                  decoration: BoxDecoration(color: Color(0xFFEEEEEE)),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _dbService.getAllUsers(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          final users = snapshot.data?.docs ?? [];
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Table(
+                  border: TableBorder.all(color: Colors.grey.shade300),
+                  // FIXED: Move verticalAlignment here to apply to all rows
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  columnWidths: const {
+                    0: FlexColumnWidth(1.2), // Name
+                    1: FlexColumnWidth(2.0), // Email
+                    2: FlexColumnWidth(1.1), // Role
+                    3: FixedColumnWidth(85), // Actions
+                  },
                   children: [
-                    Padding(padding: EdgeInsets.all(8), child: Text("Name", style: TextStyle(fontWeight: FontWeight.bold))),
-                    Padding(padding: EdgeInsets.all(8), child: Text("Email", style: TextStyle(fontWeight: FontWeight.bold))),
-                    Padding(padding: EdgeInsets.all(8), child: Text("Role", style: TextStyle(fontWeight: FontWeight.bold))),
-                  ]
+                    const TableRow(
+                      decoration: BoxDecoration(color: Color(0xFFEEEEEE)),
+                      children: [
+                        Padding(padding: EdgeInsets.all(6), child: Text("Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Padding(padding: EdgeInsets.all(6), child: Text("Email", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Padding(padding: EdgeInsets.all(6), child: Text("Role", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Padding(padding: EdgeInsets.all(6), child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                      ]
+                    ),
+                    ...users.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final String userId = doc.id;
+
+                      // FIXED: Removed 'verticalAlignment' from TableRow
+                      return TableRow(
+                        children: [
+                          Padding(padding: const EdgeInsets.all(6), child: Text(data['name'] ?? 'N/A', style: const TextStyle(fontSize: 12))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text(data['email'] ?? 'N/A', style: const TextStyle(fontSize: 11))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text(data['role'] ?? 'guest', style: const TextStyle(fontSize: 12))),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                InkWell(
+                                  onTap: () => _showEditUserDialog(context, userId, data),
+                                  child: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                                ),
+                                const SizedBox(width: 10),
+                                InkWell(
+                                  onTap: () => _confirmDelete(context, userId),
+                                  child: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
                 ),
-                TableRow(children: [
-                  Padding(padding: EdgeInsets.all(8), child: Text("Ayaan")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("ali12@gmail.com")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("Exhibitor")),
-                ]),
-                TableRow(children: [
-                  Padding(padding: EdgeInsets.all(8), child: Text("Ahmed")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("min@gmail.com")),
-                  Padding(padding: EdgeInsets.all(8), child: Text("Admin")),
-                ]),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {}, 
+                  child: const Text("Add New User")
+                ),
               ],
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(onPressed: () {}, child: const Text("Add")),
-                ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), child: const Text("Edit")),
-                ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("Delete")),
-              ],
-            )
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ... (Keep existing _showEditUserDialog and _confirmDelete methods)
+  void _showEditUserDialog(BuildContext context, String id, Map data) {
+    String selectedRole = data['role'] ?? 'guest';
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit Role for ${data['name']}"),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) {
+            return DropdownButton<String>(
+              value: selectedRole,
+              isExpanded: true,
+              items: ['admin', 'organizer', 'exhibitor', 'guest']
+                  .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                  .toList(),
+              onChanged: (val) => setDialogState(() => selectedRole = val!),
+            );
+          },
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await _dbService.updateUser(id, {'role': selectedRole});
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: const Text("Are you sure you want to remove this user?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await _dbService.deleteUser(id);
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

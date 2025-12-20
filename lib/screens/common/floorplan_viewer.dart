@@ -1,66 +1,61 @@
 import 'package:flutter/material.dart';
 import '../../services/db_service.dart';
-import '../admin/admin_floorplan.dart'; // To reuse the Painter and Models
 
-class FloorplanViewerScreen extends StatefulWidget {
+class FloorplanViewer extends StatelessWidget {
   final String eventId;
-  final String eventName;
 
-  const FloorplanViewerScreen({
-    super.key,
-    required this.eventId,
-    required this.eventName,
-  });
-
-  @override
-  State<FloorplanViewerScreen> createState() => _FloorplanViewerScreenState();
-}
-
-class _FloorplanViewerScreenState extends State<FloorplanViewerScreen> {
-  final DbService _dbService = DbService();
-  List<PlacedBooth> _booths = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final result = await _dbService.getFloorplanLayout(widget.eventId);
-    if (mounted) {
-      setState(() {
-        _booths = (result).map((json) => PlacedBooth.fromJson(json)).toList();
-        _isLoading = false;
-      });
-    }
-  }
+  const FloorplanViewer({super.key, required this.eventId});
 
   @override
   Widget build(BuildContext context) {
+    final DbService dbService = DbService();
+
     return Scaffold(
-      appBar: AppBar(title: Text("View: ${widget.eventName}")),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
-        : Stack(
-            children: [
-              CustomPaint(
-                size: Size(MediaQuery.of(context).size.width, 900),
-                painter: HallGridPainter(gridSize: 20.0),
-              ),
-              ..._booths.map((booth) => Positioned(
-                left: booth.x,
-                top: booth.y,
-                child: Container(
-                  width: booth.width,
-                  height: booth.height,
-                  color: Color(booth.colorValue).withValues(alpha: 0.8),
-                  child: Center(child: Text(booth.label)),
+      appBar: AppBar(title: const Text("Event Floor Plan")),
+      body: FutureBuilder<List<dynamic>>(
+        // Fetch the layout which now contains the static image URL [Inference]
+        future: dbService.getFloorplanLayout(eventId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final layout = snapshot.data ?? [];
+          
+          // Check if an image URL exists in the layout list [Inference]
+          String? imageUrl;
+          if (layout.isNotEmpty && layout[0] is Map) {
+            imageUrl = layout[0]['imageUrl'];
+          }
+
+          if (imageUrl == null || imageUrl.isEmpty) {
+            return const Center(
+              child: Text("No floor plan image has been uploaded for this event."),
+            );
+          }
+
+          return Center(
+            child: InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.network(
+                imageUrl,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.broken_image,
+                  size: 100,
+                  color: Colors.grey,
                 ),
-              )),
-            ],
-          ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
