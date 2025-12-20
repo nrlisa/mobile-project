@@ -1,172 +1,147 @@
-import 'package:flutter/material.dart';
-import '../../services/db_service.dart';
-import '../../services/auth_service.dart';
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class EventDetailsScreen extends StatefulWidget {
-  final String eventId; 
-  final String eventName;
+class DbService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  const EventDetailsScreen({super.key, required this.eventId, required this.eventName});
+  // ====================================================
+  // 1. ORGANIZER: EVENTS & BOOTHS SETUP
+  // ====================================================
 
-  @override
-  State<EventDetailsScreen> createState() => _EventDetailsScreenState();
-}
-
-class _EventDetailsScreenState extends State<EventDetailsScreen> {
-  final DbService _dbService = DbService();
-  late Future<List<Map<String, dynamic>>> _boothsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshBooths();
+  // Create a new Event
+  Future<String> createEvent({
+    required String name,
+    required String location,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String floorPlanUrl,
+  }) async {
+    DocumentReference docRef = await _db.collection('events').add({
+      'name': name,
+      'location': location,
+      'startDate': Timestamp.fromDate(startDate),
+      'endDate': Timestamp.fromDate(endDate),
+      'floorPlanUrl': floorPlanUrl,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
   }
 
-  void _refreshBooths() {
-    setState(() {
-      // FIXED: removed int.parse(), passing String directly
-      _boothsFuture = _dbService.getBooths(widget.eventId);
+  // (Optional) Generate text-based booths if not using the visual mapper
+  Future<void> generateBooths(String eventId, int count) async {
+    final batch = _db.batch();
+    for (int i = 1; i <= count; i++) {
+      DocumentReference boothRef = _db
+          .collection('events')
+          .doc(eventId)
+          .collection('booths')
+          .doc(); 
+
+      batch.set(boothRef, {
+        'boothNumber': 'B$i',
+        'price': 100, 
+        'status': 'available', 
+        'exhibitorId': null,
+      });
+    }
+    await batch.commit();
+  }
+
+  // ====================================================
+  // 2. ADMIN: FLOOR PLAN (VISUAL LAYOUT)
+  // ====================================================
+
+  // Save the visual layout (JSON) to the specific event document
+  Future<void> saveFloorplanLayout(String eventId, List<Map<String, dynamic>> layoutData) async {
+    await _db.collection('events').doc(eventId).update({
+      'layoutJson': jsonEncode(layoutData),
     });
   }
 
-  void _bookBooth(Map<String, dynamic> booth) async {
-    String boothNumber = booth['boothNumber'];
-    // Handle price being int or double from Firestore
-    num priceNum = booth['price']; 
+  // Load the visual layout
+  Future<List<dynamic>> getFloorplanLayout(String eventId) async {
+    DocumentSnapshot doc = await _db.collection('events').doc(eventId).get();
     
-    // 1. Show Confirmation Dialog
-    bool? confirm = await showDialog(
-      context: context, 
-      builder: (c) => AlertDialog(
-        title: Text("Book Booth $boothNumber?"),
-        content: Text("Price: RM$priceNum\n\nConfirm booking?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text("Confirm")),
-        ],
-      )
-    );
-
-    // 2. If User clicked "Confirm"
-    if (confirm == true) {
-      // FIXED: userId is now a String? in AuthService (Firebase)
-      String? userId = await AuthService().getCurrentUserId();
-      
-      if (userId != null) {
-        // Book it in the database
-        // FIXED: Added widget.eventId because Booths are a subcollection of Events
-        await _dbService.bookBooth(widget.eventId, booth['id'], userId);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Booth Booked Successfully!"))
-          );
-          // Refresh the grid so the box turns RED
-          _refreshBooths(); 
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Error: User not logged in"))
-          );
-        }
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data.containsKey('layoutJson')) {
+        return jsonDecode(data['layoutJson']);
       }
     }
+    return []; // Return empty if no layout exists
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.eventName)),
-      body: Column(
-        children: [
-          // Header / Legend
-          Container(
-            height: 100,
-            width: double.infinity,
-            color: Colors.grey[200],
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.map, size: 30, color: Colors.grey),
-                  Text("Venue Map Reference"),
-                  SizedBox(height: 5),
-                  Text("Green = Available  |  Red = Sold", style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ),
-          
-          const Padding(
-            padding: EdgeInsets.all(10.0),
-            child: Text("Select a Booth:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ),
+  // ====================================================
+  // 3. SHARED: GET DATA
+  // ====================================================
 
-          // The Grid of Booths
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _boothsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text("No booths generated for this event."));
-                }
-                
-                var booths = snapshot.data!;
+  // Get All Events
+  Future<List<Map<String, dynamic>>> getEvents() async {
+    QuerySnapshot snapshot = await _db.collection('events').orderBy('createdAt', descending: true).get();
+    
+    return snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return {
+        'id': doc.id,
+        ...data,
+      };
+    }).toList();
+  }
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, // 3 columns
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1.2,
-                  ),
-                  itemCount: booths.length,
-                  itemBuilder: (context, index) {
-                    var booth = booths[index];
-                    bool isBooked = booth['status'] == 'booked';
+  // RE-ADDED: Get Booths (List Version) - Required by Exhibitor Screens
+  Future<List<Map<String, dynamic>>> getBooths(String eventId) async {
+    // 1. First try to get 'logical' booths collection if it exists
+    QuerySnapshot snapshot = await _db
+        .collection('events')
+        .doc(eventId)
+        .collection('booths')
+        .orderBy('boothNumber') 
+        .get();
 
-                    return GestureDetector(
-                      onTap: isBooked ? null : () => _bookBooth(booth),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isBooked ? Colors.red[100] : Colors.green[100],
-                          border: Border.all(
-                            color: isBooked ? Colors.red : Colors.green,
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              booth['boothNumber'],
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isBooked ? Colors.red : Colors.green[800],
-                              ),
-                            ),
-                            Text(
-                              isBooked ? "SOLD" : "RM${booth['price']}",
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+    if (snapshot.docs.isNotEmpty) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {'id': doc.id, ...data};
+      }).toList();
+    } 
+    
+    // 2. If no collection, maybe fallback to parsing the visual layout (optional)
+    // For now, return empty to prevent crashes
+    return [];
+  }
+
+  // ====================================================
+  // 4. EXHIBITOR: BOOKING & APPLICATIONS
+  // ====================================================
+
+  // RE-ADDED: Simple Book Booth (Updates status directly)
+  Future<void> bookBooth(String eventId, String boothId, String userId) async {
+    await _db
+        .collection('events')
+        .doc(eventId)
+        .collection('booths')
+        .doc(boothId)
+        .update({
+      'status': 'booked',
+      'exhibitorId': userId,
+    });
+  }
+
+  // NEW: Submit Application (Pending Approval) - Better for Project Requirements
+  Future<void> submitApplication({
+    required String eventId,
+    required String boothId,
+    required String exhibitorId,
+    required Map<String, dynamic> formData,
+  }) async {
+    await _db.collection('applications').add({
+      'eventId': eventId,
+      'boothId': boothId,
+      'exhibitorId': exhibitorId,
+      'status': 'pending', 
+      'submittedAt': FieldValue.serverTimestamp(),
+      'companyName': formData['companyName'] ?? '',
+      'description': formData['description'] ?? '',
+    });
   }
 }

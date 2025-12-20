@@ -6,6 +6,8 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  get currentUser => null;
+
   // 1. REGISTER (Auth + Firestore for Role)
   Future<String?> register({
     required String email,

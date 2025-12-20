@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../utils/app_theme.dart';
+import '../../services/db_service.dart';
+import '../../services/auth_service.dart';
+import '../../models/event_model.dart';
+import 'package:uuid/uuid.dart';
+import 'manage_booths.dart';
 
 class ManageExhibitionsScreen extends StatefulWidget {
   const ManageExhibitionsScreen({super.key});
@@ -9,140 +13,143 @@ class ManageExhibitionsScreen extends StatefulWidget {
 }
 
 class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
-  bool _isEditing = false; // Toggle between List and Form view
+  bool _isEditing = false;
+  final _dbService = DbService();
+  final _authService = AuthService();
+
+  final _nameController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _descController = TextEditingController();
+  
+  // Removed final to allow updates from Date Pickers if you implement them
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? "Add Exhibition" : "Manage Exhibitions"),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_isEditing) {
-              setState(() => _isEditing = false);
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
       ),
       body: _isEditing ? _buildForm() : _buildList(),
     );
   }
 
-  // Page 6: List View
   Widget _buildList() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Example Item from Wireframe
-        Container(
+    final String currentUserId = _authService.currentUser?.uid ?? "";
+    return StreamBuilder<List<EventModel>>(
+      stream: _dbService.getOrganizerEvents(currentUserId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        final events = snapshot.data ?? [];
+        return ListView(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("Global Tech Expo 2025", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const Text("1-3 August 2025"),
-              const Text("Quill City Mall"),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: const Text("Edit"),
-                    onPressed: () => setState(() => _isEditing = true),
+          children: [
+            ...events.map((event) => Card(
+              child: ListTile(
+                title: Text(event.name),
+                subtitle: Text("${event.location}\n${event.date}"),
+                trailing: SizedBox(
+                  width: 100,
+                  child: Row(
+                    children: [
+                      // ADDED: The Publish Slide Box (Switch)
+                      Switch(
+                        value: event.isPublished,
+                        onChanged: (val) {
+                          setState(() {
+                            event.isPublished = val;
+                          });
+                          _dbService.addEvent(event); // Updates status in DB
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          await _dbService.deleteEvent(event.id);
+                          if (!mounted) return;
+                          messenger.showSnackBar(const SnackBar(content: Text("Exhibition Deleted")));
+                        },
+                      ),
+                    ],
                   ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                    label: const Text("Delete", style: TextStyle(color: Colors.red)),
-                    onPressed: () {},
-                  ),
-                  const Spacer(),
-                  Switch(
-                    value: true,
-                    onChanged: (val) {},
-                    activeThumbColor: AppTheme.successGreen, // Fixed property name from activeThumbColor
-                  ), 
-                ],
-              )
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () => setState(() => _isEditing = true),
-          child: const Text("Add"),
-        ),
-      ],
+                ),
+              ),
+            )),
+            ElevatedButton(
+              onPressed: () => setState(() => _isEditing = true),
+              child: const Text("Add New Exhibition"),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  // Page 7: Form View
   Widget _buildForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const TextField(decoration: InputDecoration(labelText: "Exhibition Name")),
+          // Updated to show step 1 as active
+          _buildStepper(1), 
+          const SizedBox(height: 20),
+          TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Exhibition Name")),
           const SizedBox(height: 16),
-          const TextField(decoration: InputDecoration(labelText: "Add Details")),
-          const SizedBox(height: 16),
-          
-          // Added const to Row, children list, Expanded, TextField, InputDecoration, and Icon
-          const Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: "Start Date", 
-                    suffixIcon: Icon(Icons.calendar_today),
-                  ),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: "End Date", 
-                    suffixIcon: Icon(Icons.calendar_today),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          const TextField(decoration: InputDecoration(labelText: "Location")),
-          const SizedBox(height: 16),
-          const TextField(decoration: InputDecoration(labelText: "Description"), maxLines: 3),
+          TextField(controller: _locationController, decoration: const InputDecoration(labelText: "Location")),
           const SizedBox(height: 30),
-          
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => setState(() => _isEditing = false),
-                  child: const Text("Cancel"),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => setState(() => _isEditing = false),
-                  child: const Text("Save"),
-                ),
-              ),
-            ],
+          ElevatedButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final String eventId = const Uuid().v4(); 
+              
+              final newEvent = EventModel(
+                id: eventId,
+                name: _nameController.text,
+                date: "${_startDate.day}/${_startDate.month} - ${_endDate.day}/${_endDate.month}/${_endDate.year}",
+                location: _locationController.text,
+                description: _descController.text,
+                isPublished: false,
+                organizerId: _authService.currentUser?.uid ?? "",
+              );
+
+              await _dbService.addEvent(newEvent);
+              
+              if (!mounted) return;
+              messenger.showSnackBar(const SnackBar(content: Text("Event Saved. Define Booths Next.")));
+
+              // Passing eventId ensures booths are linked ONLY to this event
+              Navigator.push(
+                context, 
+                MaterialPageRoute(builder: (context) => ManageBoothsScreen(eventId: eventId))
+              );
+              
+              setState(() => _isEditing = false);
+            },
+            child: const Text("Next"),
           ),
         ],
       ),
     );
   }
+
+  // Simplified Stepper to 2 steps as requested
+  Widget _buildStepper(int step) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _circleStep("Add/Edit", step >= 1),
+        _line(step >= 2),
+        _circleStep("Manage Booth", step >= 2),
+      ],
+    );
+  }
+
+  Widget _circleStep(String label, bool active) => Column(children: [
+    CircleAvatar(radius: 12, backgroundColor: active ? Colors.blue : Colors.blue.shade100),
+    Text(label, style: const TextStyle(fontSize: 10))
+  ]);
+
+  Widget _line(bool active) => Container(width: 40, height: 2, color: active ? Colors.blue : Colors.grey.shade300);
 }

@@ -1,9 +1,9 @@
 import 'package:go_router/go_router.dart';
+import 'package:project3_lab04_nurlisa_52215124595/screens/guest/guest_home.dart';
 
 // AUTH & GUEST IMPORTS
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
-import '../screens/guest/guest_home.dart';
 import '../screens/guest/event_details.dart';
 
 // EXHIBITOR IMPORTS
@@ -13,10 +13,11 @@ import '../screens/exhibitor/my_applications.dart';
 
 // ORGANIZER IMPORTS
 import '../screens/organizer/organizer_dashboard.dart';
-import '../screens/organizer/manage_exhibitions.dart'; // Ensure you created this file
-import '../screens/organizer/manage_booths.dart';      // Ensure you created this file
-import '../screens/organizer/organizer_applications.dart'; // Ensure you created this file
-import '../screens/organizer/floorplan_upload.dart';   // Ensure you created this file
+import '../screens/organizer/manage_exhibitions.dart'; 
+import '../screens/organizer/manage_booths.dart';      
+import '../screens/organizer/organizer_applications.dart'; 
+import '../screens/organizer/floorplan_upload.dart';   
+import '../screens/organizer/add_event_screen.dart'; // Added: Needed for Page 7
 
 // ADMIN IMPORTS
 import '../screens/admin/admin_dashboard.dart';
@@ -38,11 +39,12 @@ final GoRouter router = GoRouter(
     ),
     GoRoute(
       path: '/guest',
-      builder: (context, state) => const GuestScreen(),
+      // FIX: Ensure this matches the class name in guest_home.dart (GuestHomeScreen)
+      builder: (context, state) => const GuestHomeScreen(), 
     ),
     GoRoute(
       path: '/guest/details',
-      builder: (context, state) => const EventDetailsScreen(),
+      builder: (context, state) => const EventDetailsScreen(eventId: '',),
     ),
 
     // --- EXHIBITOR ROUTES ---
@@ -69,14 +71,13 @@ final GoRouter router = GoRouter(
       path: '/organizer',
       builder: (context, state) => const OrganizerDashboard(),
       routes: [
-        // THESE WERE MISSING OR INCORRECT:
         GoRoute(
           path: 'exhibitions',
           builder: (context, state) => const ManageExhibitionsScreen(),
         ),
         GoRoute(
           path: 'booths',
-          builder: (context, state) => const ManageBoothsScreen(),
+          builder: (context, state) => const ManageBoothsScreen(eventId: '',),
         ),
         GoRoute(
           path: 'applications',
@@ -85,6 +86,11 @@ final GoRouter router = GoRouter(
         GoRoute(
           path: 'upload',
           builder: (context, state) => const FloorplanUploadScreen(),
+        ),
+        // ADDED: Route for your Page 7 Create Exhibition
+        GoRoute(
+          path: 'add-event',
+          builder: (context, state) => const AddEventScreen(),
         ),
       ],
     ),
@@ -102,11 +108,23 @@ final GoRouter router = GoRouter(
           path: 'global-exhibitions',
           builder: (context, state) => const GlobalExhibitionsScreen(),
         ),
+        // FIX: Added data handling for the Floorplan Editor
         GoRoute(
           path: 'floorplan',
-          builder: (context, state) => const AdminFloorplanScreen(),
+          builder: (context, state) {
+            final args = state.extra as Map<String, dynamic>? ?? 
+                {'eventId': 'default_event', 'eventName': 'Exhibition'};
+            return AdminFloorplanScreen(
+              eventId: args['eventId'],
+              eventName: args['eventName'],
+            );
+          },
         ),
       ],
     ),
   ],
 );
+
+class GuestHome {
+  const GuestHome();
+}

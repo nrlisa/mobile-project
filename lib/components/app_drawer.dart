@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../utils/app_theme.dart'; 
+import '../utils/app_theme.dart';
+import '../services/auth_service.dart'; // Import AuthService
 
 class AppDrawer extends StatelessWidget {
-  final String role; 
+  final String role;
 
   const AppDrawer({super.key, required this.role});
 
@@ -32,28 +33,46 @@ class AppDrawer extends StatelessWidget {
           if (role == 'Organizer') ...[
              _buildItem(context, Icons.dashboard, "Dashboard", '/organizer'),
              _buildItem(context, Icons.map, "Manage Floorplans", '/organizer/upload'),
-             _buildItem(context, Icons.edit_calendar, "Manage Exhibitions", '/organizer'), 
+             _buildItem(context, Icons.edit_calendar, "Manage Exhibitions", '/organizer/exhibitions'), // Fixed route based on your routes.dart
           ],
 
           const Spacer(),
           const Divider(),
-          _buildItem(context, Icons.logout, "Logout", '/login', isDestructive: true),
+          
+          // Fixed Logout Button
+          ListTile(
+            leading: const Icon(Icons.logout, color: AppTheme.errorRed),
+            title: const Text(
+              "Logout", 
+              style: TextStyle(
+                color: AppTheme.errorRed, 
+                fontWeight: FontWeight.bold
+              )
+            ),
+            onTap: () async {
+              // 1. Close the drawer first
+              context.pop(); 
+              
+              // 2. Perform actual Firebase Logout
+              await AuthService().logout();
+              
+              // 3. Navigate to Login
+              if (context.mounted) {
+                context.go('/login');
+              }
+            },
+          ),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildItem(BuildContext context, IconData icon, String title, String route, {bool isDestructive = false}) {
+  // Helper for standard navigation items only
+  Widget _buildItem(BuildContext context, IconData icon, String title, String route) {
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? AppTheme.errorRed : AppTheme.textGrey),
-      title: Text(
-        title, 
-        style: TextStyle(
-          color: isDestructive ? AppTheme.errorRed : AppTheme.textBlack,
-          fontWeight: isDestructive ? FontWeight.bold : FontWeight.normal
-        )
-      ),
+      leading: Icon(icon, color: AppTheme.textGrey),
+      title: Text(title, style: const TextStyle(color: AppTheme.textBlack)),
       onTap: () {
         context.pop(); // Close drawer
         context.go(route);

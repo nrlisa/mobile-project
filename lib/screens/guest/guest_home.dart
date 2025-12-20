@@ -1,115 +1,174 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../utils/app_theme.dart';
+import '../../services/db_service.dart';
+import '../../models/event_model.dart';
+// Ensure this exists for styling
 
-class GuestScreen extends StatelessWidget {
-  const GuestScreen({super.key});
+class GuestHomeScreen extends StatelessWidget {
+  const GuestHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Upcoming Events"),
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
         actions: [
+          // FIXED: Login button instead of logout for guests
           TextButton(
             onPressed: () => context.go('/login'),
-            child: const Text("Login", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Login",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Welcome Guest!",
-              style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryDark),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Header Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            color: Colors.blue.shade50,
+            width: double.infinity,
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Welcome, Guest!",
+                  style: TextStyle(
+                    fontSize: 24, 
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black, // Or AppTheme.primaryDark if defined
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  "Explore upcoming exhibitions below.",
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
+          ),
 
-            _buildEventCard(
-              context,
-              title: "Global Tech Expo 2025",
-              date: "1-3 August 2025",
-              location: "Quill City Mall",
-              color: Colors.blue.shade50,
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+            child: Text(
+              "Available Exhibitions",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+          ),
 
-            const SizedBox(height: 16),
+          // 2. The Dynamic List (StreamBuilder)
+          Expanded(
+            child: StreamBuilder<List<EventModel>>(
+              stream: DbService().getGuestEvents(), 
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            _buildEventCard(
-              context,
-              title: "Creative Art Expo 2025",
-              date: "10-15 September 2025",
-              location: "KLCC Convention Hall",
-              color: Colors.purple.shade50,
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
+
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
+                        const SizedBox(height: 10),
+                        const Text("No upcoming exhibitions found.",
+                            style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  );
+                }
+
+                final events = snapshot.data!;
+                return ListView.builder(
+                  itemCount: events.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemBuilder: (context, index) {
+                    final event = events[index];
+                    return _buildEventCard(context, event);
+                  },
+                );
+              },
             ),
-
-            const SizedBox(height: 40),
-
-            SizedBox(
+          ),
+          
+          // Optional: "Next" button from your design if needed
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => context.push('/guest/details'),
-                child: const Text("Next"),
+                child: const Text("View General Details"),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildEventCard(
-    BuildContext context, {
-    required String title,
-    required String date,
-    required String location,
-    required Color color,
-  }) {
+  // Helper widget to build the card UI with your opacity design
+  Widget _buildEventCard(BuildContext context, EventModel event) {
     return Card(
       elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => context.push('/guest/details'),
         borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          context.push(
+            '/floorplan-viewer', 
+            extra: {
+              'eventId': event.id,
+              'eventName': event.name
+            }
+          );
+        },
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            // ignore: deprecated_member_use
-            color: color.withOpacity(0.5),
+            // Uses the light blue background from your design
+            color: Colors.blue.shade50.withValues(alpha:.5),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                title,
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              const Icon(Icons.event, size: 40, color: Colors.blueAccent),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.name,
+                      style: const TextStyle(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${event.date} • ${event.location}",
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(date, style: const TextStyle(fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(location, style: const TextStyle(fontSize: 16)),
-                ],
-              ),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             ],
           ),
         ),
