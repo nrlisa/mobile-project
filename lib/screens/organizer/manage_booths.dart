@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/db_service.dart';
 
 class ManageBoothsScreen extends StatefulWidget {
-  final String eventId; // Added to catch ID from Phase 2
+  final String eventId; 
   const ManageBoothsScreen({super.key, required this.eventId});
 
   @override
@@ -14,13 +14,23 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
   bool _showForm = false;
   final _dbService = DbService();
 
-  // Controllers to capture Phase 3 data
   final _typeController = TextEditingController();
   final _priceController = TextEditingController();
   final _slotsController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
+    // --- ADDED: CHECK FOR EMPTY PATH ---
+    // This prevents the "Invalid argument(s): A document path must be a non-empty string" error
+    if (widget.eventId.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Error")),
+        body: const Center(
+          child: Text("Error: Event ID is missing. Please go back and try again."),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Manage Booth", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -36,19 +46,42 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
             const Center(child: Text("Organizer", style: TextStyle(color: Colors.grey))),
             const SizedBox(height: 20),
             
-            // --- THE PROGRESS STEPPER (PHASE 3) ---
-            // Simplified to 2 steps as per your request
             _buildStepper(2), 
             
             const SizedBox(height: 30),
             _showForm ? _buildAddForm() : _buildList(),
+
+            // --- ADDED: BACK & SAVE & FINISH BUTTONS ---
+            const SizedBox(height: 40),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Back"),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Finalizes the flow and returns to the Exhibition List
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Exhibition and Booths Saved Successfully")),
+                      );
+                    },
+                    child: const Text("Save & Finish"),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Visual component for the 2-cycle progress bar
   Widget _buildStepper(int currentStep) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -88,7 +121,6 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
     );
   }
 
-  // Page 9: Dynamic Table View of Booths
   Widget _buildList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,13 +128,20 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
         const Text("List of Booths", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         
-        // Use StreamBuilder to show booths specifically for THIS event
+        // StreamBuilder ensures the list is filtered by the current Event ID
         StreamBuilder<QuerySnapshot>(
           stream: _dbService.getBoothsForEvent(widget.eventId),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) return const CircularProgressIndicator();
+            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
             
             final docs = snapshot.data?.docs ?? [];
+
+            if (docs.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: Text("No booth types added yet.", style: TextStyle(color: Colors.grey))),
+              );
+            }
 
             return Table(
               border: TableBorder.all(color: Colors.grey.shade300),
@@ -136,7 +175,6 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
     );
   }
 
-  // Page 8: Form View
   Widget _buildAddForm() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -182,14 +220,15 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
               const SizedBox(width: 10),
               ElevatedButton(
                 onPressed: () async {
-                  // Save Booth Type linked to specific eventID
+                  if (_typeController.text.isEmpty || _priceController.text.isEmpty) return;
+
+                  // Saves to sub-collection of specific eventID
                   await _dbService.addBoothType(widget.eventId, {
                     'type': _typeController.text,
                     'price': _priceController.text,
                     'slots': _slotsController.text,
                   });
                   
-                  // Clear controllers and hide form
                   _typeController.clear();
                   _priceController.clear();
                   _slotsController.clear();
