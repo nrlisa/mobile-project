@@ -11,7 +11,7 @@ class EventSelection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _dbService.getEvents(), 
+      future: _dbService.getEvents(), //
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -25,11 +25,14 @@ class EventSelection extends StatelessWidget {
           itemCount: rawData.length,
           itemBuilder: (context, index) {
             final data = rawData[index];
+            
+            // Updated to use named parameters as defined in types.dart
             final event = Event(
-              data['id'] ?? '',
-              data['name'] ?? 'Unnamed Exhibition',
-              data['date'] ?? '',
-              data['location'] ?? '',
+              id: data['id'] ?? '',
+              name: data['name'] ?? 'Unnamed Exhibition',
+              date: data['date']?.toString() ?? '',
+              location: data['location'] ?? '',
+              icon: data['icon'] ?? 'business',
             );
 
             return Card(

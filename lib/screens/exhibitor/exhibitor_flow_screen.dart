@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../services/db_service.dart';
 import '../../widgets/progress_stepper.dart'; 
 import 'steps/booth_selection.dart'; // Import your booth selection widget
+import 'steps/application_form.dart'; // Import for step 3
+import 'steps/review_application.dart'; // Import for step 4
 
 class ApplicationFlowScreen extends StatefulWidget {
   const ApplicationFlowScreen({super.key});
@@ -14,8 +16,12 @@ class ApplicationFlowScreen extends StatefulWidget {
 class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
   final DbService _dbService = DbService();
   late Future<List<Map<String, dynamic>>> _eventsFuture;
+  
+  // State variables to hold user selections
   String? _selectedEventId;
   String? _selectedBoothId;
+  Map<String, dynamic>? _applicationData;
+
   int _currentStep = 0; 
 
   @override
@@ -29,7 +35,8 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(_currentStep == 0 ? "Select Event" : "Select Booth"),
+        // Dynamic Title
+        title: Text(_getAppBarTitle()),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,
@@ -51,13 +58,22 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
     );
   }
 
+  String _getAppBarTitle() {
+    switch (_currentStep) {
+      case 0: return "Select Event";
+      case 1: return "Select Booth";
+      case 2: return "Application Form";
+      case 3: return "Review & Submit";
+      default: return "Application Flow";
+    }
+  }
+
   Widget _buildCurrentStepContent() {
     switch (_currentStep) {
       case 0:
         return _buildEventSelectionStep();
       case 1:
         return BoothSelection(
-          // Pass callbacks to the BoothSelection widget
           onBack: () => setState(() => _currentStep = 0),
           onBoothSelected: (boothId) {
             setState(() {
@@ -66,8 +82,28 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
             });
           },
         );
+      case 2:
+        return ApplicationForm(
+          onBack: () => setState(() => _currentStep = 1),
+          onFormSubmitted: (data) {
+            setState(() {
+              _applicationData = data;
+              _currentStep = 3; // Move to Review
+            });
+          },
+        );
+      case 3:
+        return ReviewApplication(
+          boothId: _selectedBoothId ?? '',
+          formData: _applicationData ?? {},
+          onBack: () => setState(() => _currentStep = 2),
+          onSubmit: () {
+            // Final submission logic here
+            context.go('/exhibitor');
+          },
+        );
       default:
-        return const Center(child: Text("Next Steps Coming Soon"));
+        return const Center(child: Text("Error: Step not found"));
     }
   }
 
@@ -98,6 +134,9 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Center(child: Text("No events available."));

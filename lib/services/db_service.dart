@@ -22,7 +22,6 @@ class DbService {
     }
   }
 
-  // Method to update exhibition details
   Future<void> updateEvent(String eventId, Map<String, dynamic> updatedData) async {
     try {
       await _firestore.collection('events').doc(eventId).update(updatedData);
@@ -42,12 +41,10 @@ class DbService {
 
   // --- 2. USER MANAGEMENT (ADMIN ROLE) ---
 
-  // Fetches all users for the Admin Dashboard
   Stream<QuerySnapshot> getAllUsers() {
     return _firestore.collection('users').snapshots();
   }
 
-  // Updates user roles or information
   Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
       await _firestore.collection('users').doc(userId).update(userData);
@@ -56,7 +53,6 @@ class DbService {
     }
   }
 
-  // Deletes a user from Firestore
   Future<void> deleteUser(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).delete();
@@ -151,13 +147,12 @@ class DbService {
 
   // --- 5. DATA RETRIEVAL ---
 
-  // UPDATED: Now ensures each event map contains the document 'id'
   Future<List<Map<String, dynamic>>> getEvents() async {
     try {
       final snapshot = await _firestore.collection('events').get();
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        data['id'] = doc.id; // CRITICAL: Adds the ID needed for selection
+        data['id'] = doc.id; 
         return data;
       }).toList();
     } catch (e) {
@@ -190,5 +185,65 @@ class DbService {
     final String idToUse = (eventId == null || eventId.isEmpty) ? (currentEventId ?? "") : eventId;
     if (idToUse.isEmpty) return const Stream.empty(); 
     return _firestore.collection('events').doc(idToUse).collection('booth_types').snapshots();
+  }
+
+  // --- 6. APPLICATION MANAGEMENT ---
+
+  Future<void> submitApplication({
+    required String userId,
+    required String eventName,
+    required String boothId,
+    required Map<String, dynamic> applicationData,
+    required double totalAmount,
+  }) async {
+    try {
+      await _firestore.collection('applications').add({
+        'userId': userId,
+        'eventName': eventName,
+        'boothId': boothId,
+        'companyName': applicationData['details']?['companyName'] ?? 'N/A',
+        'companyDescription': applicationData['details']?['description'] ?? 'N/A',
+        'exhibitProfile': applicationData['details']?['exhibitProfile'] ?? 'N/A',
+        'addons': applicationData['addons'] ?? [],
+        'totalAmount': totalAmount,
+        'status': 'Pending', // Mandatory initial status
+        'submissionDate': FieldValue.serverTimestamp(),
+      });
+      debugPrint("✅ Application stored in Firestore with status: Pending");
+    } catch (e) {
+      debugPrint("❌ Firestore Application Error: $e");
+      rethrow;
+    }
+  }
+
+  // FIX: Temporary removal of orderBy to bypass Index error so you can see data
+  Stream<QuerySnapshot> getExhibitorApplications(String userId) {
+    return _firestore
+        .collection('applications')
+        .where('userId', isEqualTo: userId)
+        // [Unverified] Once you click the link in your console error and create the index, 
+        // you can uncomment the line below to restore sorting.
+        // .orderBy('submissionDate', descending: true) 
+        .snapshots();
+  }
+
+  Future<void> updateApplication(String docId, Map<String, dynamic> updatedData) async {
+    try {
+      await _firestore.collection('applications').doc(docId).update(updatedData);
+      debugPrint("✅ Application $docId updated");
+    } catch (e) {
+      debugPrint("❌ Update Application Error: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> cancelApplication(String docId) async {
+    try {
+      await _firestore.collection('applications').doc(docId).delete();
+      debugPrint("✅ Application $docId cancelled/deleted");
+    } catch (e) {
+      debugPrint("❌ Cancel Application Error: $e");
+      rethrow;
+    }
   }
 }

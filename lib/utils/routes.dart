@@ -83,14 +83,13 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const ExhibitorDashboard(),
       routes: [
         GoRoute(
-          path: 'flow',
+          path: '/flow',
           // Ensure this line uses the EXACT class name defined in application_flow_screen.dart
           builder: (context, state) => const ApplicationFlowScreen(),
         ),
         GoRoute(
-          path: 'applications',
+          path: 'my-applications',
           builder: (context, state) => MyApplications(
-            applications: const [],
             onView: (application) {},
           ),
         ),

@@ -18,7 +18,6 @@ class BoothSelectionMap extends StatefulWidget {
 class _BoothSelectionMapState extends State<BoothSelectionMap> {
   String? _selectedBoothId;
 
-  // Group booths by hall for display
   Map<String, List<Booth>> get _boothsByHall {
     final Map<String, List<Booth>> grouped = {};
     for (final booth in widget.booths) {
@@ -31,15 +30,14 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
   }
 
   void _handleBoothTap(Booth booth) {
+    // Only allow selection if available
     if (booth.status != 'available') return;
 
     setState(() {
       if (_selectedBoothId == booth.id) {
-        // Deselect if already selected
         _selectedBoothId = null;
         widget.onBoothSelected(null);
       } else {
-        // Select new booth
         _selectedBoothId = booth.id;
         widget.onBoothSelected(booth);
         _showBoothDetailsModal(context, booth);
@@ -57,7 +55,8 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
       case 'booked':
         return Colors.red[300]!;
       case 'reserved':
-        return Colors.amber[300]!;
+        // Updated to Orange for reserved status
+        return Colors.orange[300]!;
       default:
         return Colors.grey[300]!;
     }
@@ -94,7 +93,7 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
                       ),
                     ),
                     SizedBox(
-                      width: 600, // Fixed width for the grid to allow horizontal scrolling
+                      width: 600,
                       child: GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -127,12 +126,13 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 12,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     if (booth.status == 'available')
                                       Text(
                                         'RM${booth.price.toStringAsFixed(0)}',
-                                        style: const TextStyle(fontSize: 10),
+                                        style: const TextStyle(fontSize: 10, color: Colors.white70),
                                       ),
                                   ],
                                 ),
@@ -174,10 +174,7 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
                 children: [
                   Text(
                     'Booth ${booth.id}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -187,72 +184,55 @@ class _BoothSelectionMapState extends State<BoothSelectionMap> {
               ),
               Text(
                 '${booth.type} Booth',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.green[100],
+                      color: booth.status == 'available' ? Colors.green[100] : Colors.orange[100],
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'Available',
-                      style: TextStyle(color: Colors.green[800]),
+                      booth.status.toUpperCase(),
+                      style: TextStyle(
+                        color: booth.status == 'available' ? Colors.green[800] : Colors.orange[800],
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        'Price',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
+                      Text('Price', style: TextStyle(color: Colors.grey[600])),
                       Text(
                         'RM${booth.price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Dimensions',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Dimensions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text(
-                booth.dimensions,
-                style: const TextStyle(fontSize: 16),
-              ),
+              Text(booth.dimensions, style: const TextStyle(fontSize: 16)),
               const SizedBox(height: 24),
-              const Text(
-                'Included Features',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Included Features', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               ...booth.features.map((feature) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle,
-                            size: 16, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Text(feature),
-                      ],
-                    ),
-                  )),
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Text(feature),
+                  ],
+                ),
+              )),
               const SizedBox(height: 24),
             ],
           ),
