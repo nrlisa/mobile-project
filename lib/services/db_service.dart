@@ -22,7 +22,7 @@ class DbService {
     }
   }
 
-  // FIXED: Method to update exhibition details
+  // Method to update exhibition details
   Future<void> updateEvent(String eventId, Map<String, dynamic> updatedData) async {
     try {
       await _firestore.collection('events').doc(eventId).update(updatedData);
@@ -42,12 +42,12 @@ class DbService {
 
   // --- 2. USER MANAGEMENT (ADMIN ROLE) ---
 
-  // Fetches all users for the Admin Dashboard [Inference]
+  // Fetches all users for the Admin Dashboard
   Stream<QuerySnapshot> getAllUsers() {
     return _firestore.collection('users').snapshots();
   }
 
-  // Updates user roles or information [Inference]
+  // Updates user roles or information
   Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
       await _firestore.collection('users').doc(userId).update(userData);
@@ -56,7 +56,7 @@ class DbService {
     }
   }
 
-  // Deletes a user from Firestore [Inference]
+  // Deletes a user from Firestore
   Future<void> deleteUser(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).delete();
@@ -99,7 +99,6 @@ class DbService {
 
   // --- 4. EVENT CREATION & BOOTH GENERATION ---
 
-  // FIXED: Now ensures a String is always returned or an error is thrown
   Future<String> createEvent({
     required String name, 
     required String location, 
@@ -128,7 +127,6 @@ class DbService {
     }
   }
 
-  // FIXED: Implemented the missing generateBooths method
   Future<void> generateBooths(String eventId, int count) async {
     try {
       final batch = _firestore.batch();
@@ -153,11 +151,17 @@ class DbService {
 
   // --- 5. DATA RETRIEVAL ---
 
+  // UPDATED: Now ensures each event map contains the document 'id'
   Future<List<Map<String, dynamic>>> getEvents() async {
     try {
       final snapshot = await _firestore.collection('events').get();
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id; // CRITICAL: Adds the ID needed for selection
+        return data;
+      }).toList();
     } catch (e) {
+      debugPrint("❌ Error fetching events: $e");
       return [];
     }
   }

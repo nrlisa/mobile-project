@@ -1,97 +1,218 @@
 import 'package:flutter/material.dart';
-import '../../../utils/app_theme.dart';
-class BoothSelection extends StatelessWidget {
-  final Function(String) onBoothSelected;
 
-  const BoothSelection({super.key, required this.onBoothSelected, required void Function() onBack});
+class BoothSelection extends StatefulWidget {
+  final Function(String) onBoothSelected;
+  final VoidCallback onBack;
+
+  const BoothSelection({
+    super.key,
+    required this.onBoothSelected,
+    required this.onBack,
+  });
+
+  @override
+  State<BoothSelection> createState() => _BoothSelectionState();
+}
+
+class _BoothSelectionState extends State<BoothSelection> {
+  String? _selectedBoothId;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return DefaultTabController(
+      length: 3, // Halls A, B, and C
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search Bar
-          TextField(
-            decoration: InputDecoration(
-              hintText: "Search booth",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.grey.shade100,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+          // 1. Legend (Status Indicators)
+          _buildLegend(),
+
+          // 2. Hall Selection Tabs
+          const TabBar(
+            labelColor: Colors.blue,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Colors.blue,
+            tabs: [
+              Tab(text: "Hall A (Small)"),
+              Tab(text: "Hall B (Medium)"),
+              Tab(text: "Hall C (Large)"),
+            ],
+          ),
+
+          // 3. Interactive Grid for each Hall
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildBoothGrid("A", "Small", 4, 1.0),   // Hall A: Small (Square)
+                _buildBoothGrid("B", "Medium", 3, 1.3),  // Hall B: Medium (Rectangle)
+                _buildBoothGrid("C", "Large", 2, 1.6),   // Hall C: Large (Wide Rectangle)
+              ],
             ),
           ),
-          const SizedBox(height: 20),
-          
-          // Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildLegendItem(Colors.blue, "Selected"),
-              _buildLegendItem(AppTheme.successGreen, "Available"),
-              _buildLegendItem(AppTheme.warningAmber, "Reserved"),
-              _buildLegendItem(AppTheme.errorRed, "Booked"),
-            ],
-          ),
-          const SizedBox(height: 20),
 
-          const Text("Hall A - Small Booths", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-
-          // Grid of Booths - Matches Wireframe Page 13
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 4,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            children: [
-              _buildBoothItem("A-01", "RM1000", AppTheme.successGreen), // Available
-              _buildBoothItem("A-02", "RM1000", AppTheme.errorRed),    // Booked
-              _buildBoothItem("A-03", "RM1000", AppTheme.errorRed),    // Booked
-              _buildBoothItem("A-04", "RM1000", AppTheme.warningAmber),// Reserved
-              
-              _buildBoothItem("B-01", "RM2500", AppTheme.successGreen),
-              _buildBoothItem("B-02", "RM2500", AppTheme.warningAmber),
-              _buildBoothItem("B-03", "RM2500", AppTheme.successGreen),
-              _buildBoothItem("B-04", "RM2500", AppTheme.errorRed),
-            ],
+          // 4. Bottom Navigation
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: widget.onBack, 
+                  child: const Text("BACK", style: TextStyle(color: Colors.grey))
+                ),
+                ElevatedButton(
+                  onPressed: _selectedBoothId == null
+                      ? null
+                      : () => widget.onBoothSelected(_selectedBoothId!),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                  ),
+                  child: const Text("NEXT"),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLegendItem(Color color, String label) {
-    return Row(
+  Widget _buildLegend() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _legendItem(Colors.green, "Available"),
+          const SizedBox(width: 15),
+          _legendItem(Colors.red, "Booked"),
+          const SizedBox(width: 15),
+          _legendItem(Colors.blue, "Selected"),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendItem(Color color, String label) => Row(
+        children: [
+          Container(
+            width: 12, 
+            height: 12, 
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 10)),
+        ],
+      );
+
+  Widget _buildBoothGrid(String hall, String size, int crossAxis, double ratio) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(radius: 5, backgroundColor: color),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text("$size Booths in $hall", 
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxis, 
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: ratio, 
+            ),
+            itemCount: 12, // Example count per hall
+            itemBuilder: (context, index) {
+              String boothId = "$hall-${index + 1}";
+              bool isBooked = index % 5 == 0; // Mock logic: every 5th booth is booked
+              bool isSelected = _selectedBoothId == boothId;
+
+              Color bgColor = isSelected 
+                  ? Colors.blue 
+                  : (isBooked ? Colors.red : Colors.green);
+
+              return GestureDetector(
+                onTap: isBooked ? null : () => _showBoothPopup(boothId, size),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected ? Border.all(color: Colors.white, width: 2) : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      boothId,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildBoothItem(String id, String price, Color color) {
-    return GestureDetector(
-      onTap: () {
-         if (color == AppTheme.successGreen) {
-           onBoothSelected(id);
-         }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-            Text(price, style: const TextStyle(fontSize: 10)),
+  // POPUP DIALOG LOGIC
+  void _showBoothPopup(String boothId, String size) {
+    // Logic to determine price based on size
+    String price = (size == "Small") ? "RM 1000" : (size == "Medium") ? "RM 2500" : "RM 5000";
+    String dimensions = (size == "Small") ? "3m x 3m" : (size == "Medium") ? "5m x 5m" : "8m x 8m";
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.blue),
+              const SizedBox(width: 10),
+              Text("Booth $boothId"),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Category:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("$size Booth"),
+              const SizedBox(height: 10),
+              const Text("Dimensions:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(dimensions),
+              const SizedBox(height: 10),
+              const Text("Price:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(price, style: const TextStyle(fontSize: 18, color: Colors.blue, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  SizedBox(width: 5),
+                  Text("Status: Available", style: TextStyle(color: Colors.green)),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("CANCEL", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() => _selectedBoothId = boothId);
+                Navigator.pop(context); // Close popup
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: const Text("SELECT BOOTH"),
+            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

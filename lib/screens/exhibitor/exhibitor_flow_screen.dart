@@ -1,125 +1,193 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // REQUIRED for navigation
-import '../../models/types.dart';
-import 'booth_selection_map.dart'; 
-import '../../components/app_drawer.dart'; 
+import 'package:go_router/go_router.dart';
+import '../../services/db_service.dart';
+import '../../widgets/progress_stepper.dart'; 
+import 'steps/booth_selection.dart'; // Import your booth selection widget
 
-class ExhibitorFlowScreen extends StatefulWidget {
-  const ExhibitorFlowScreen({super.key});
+class ApplicationFlowScreen extends StatefulWidget {
+  const ApplicationFlowScreen({super.key});
 
   @override
-  State<ExhibitorFlowScreen> createState() => _ExhibitorFlowScreenState();
+  State<ApplicationFlowScreen> createState() => _ApplicationFlowScreenState();
 }
 
-class _ExhibitorFlowScreenState extends State<ExhibitorFlowScreen> {
-  int _currentStep = 0;
-  Booth? _selectedBooth;
+class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
+  final DbService _dbService = DbService();
+  late Future<List<Map<String, dynamic>>> _eventsFuture;
+  String? _selectedEventId;
+  String? _selectedBoothId;
+  int _currentStep = 0; 
 
-  // Mock booth data
-  final List<Booth> _mockBooths = [
-    for (int i = 1; i <= 12; i++)
-      Booth(
-        id: 'A-${i.toString().padLeft(2, '0')}',
-        hall: 'A',
-        type: 'Small',
-        status: i % 5 == 0 ? 'booked' : (i % 7 == 0 ? 'reserved' : 'available'),
-        price: 1000.0,
-      ),
-    for (int i = 1; i <= 8; i++)
-      Booth(
-        id: 'B-${i.toString().padLeft(2, '0')}',
-        hall: 'B',
-        type: 'Medium',
-        status: 'available',
-        price: 2500.0,
-        dimensions: "5m x 5m",
-      ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _eventsFuture = _dbService.getEvents();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Application Flow'),
+        title: Text(_currentStep == 0 ? "Select Event" : "Select Booth"),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
       ),
-      // This puts the drawer on the RIGHT side
-      endDrawer: const AppDrawer(role: 'Exhibitor'), 
-      
-      body: Stepper(
-        type: StepperType.horizontal,
-        currentStep: _currentStep,
-        onStepContinue: () {
-          // Validation: Booth must be selected in Step 1
-          if (_currentStep == 1 && _selectedBooth == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please select a booth to continue.')),
-            );
-            return;
-          }
+      body: Column(
+        children: [
+          // 1. Top Stepper
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: ProgressStepper(currentStep: _currentStep),
+          ),
 
-          if (_currentStep < 2) {
-            // Move to next step (0 -> 1 -> 2)
-            setState(() => _currentStep += 1);
-          } else {
-            // --- CRITICAL FIX ---
-            // This actually opens the Payment Screen
-            context.push('/exhibitor/payment'); 
-          }
-        },
-        onStepCancel: () {
-          if (_currentStep > 0) {
-            setState(() => _currentStep -= 1);
-          }
-        },
-        steps: [
-          Step(
-            title: const Text('Details'),
-            content: Container(
-              height: 200,
-              alignment: Alignment.center,
-              child: const Text('Form Details (Enter Info Here)'),
-            ),
-            isActive: _currentStep >= 0,
-          ),
-          Step(
-            title: const Text('Booth'),
-            content: SizedBox(
-              height: 400,
-              child: BoothSelectionMap(
-                booths: _mockBooths,
-                onBoothSelected: (booth) {
-                  setState(() {
-                    _selectedBooth = booth;
-                  });
-                },
-              ),
-            ),
-            isActive: _currentStep >= 1,
-          ),
-          Step(
-            title: const Text('Payment'),
-            content: Container(
-              height: 200,
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.payment, size: 50, color: Colors.blue),
-                  const SizedBox(height: 16),
-                  const Text('Review Selection & Pay'),
-                  if (_selectedBooth != null)
-                    Text(
-                      'Booth: ${_selectedBooth!.id}\nTotal: RM${_selectedBooth!.price.toStringAsFixed(2)}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                ],
-              ),
-            ),
-            isActive: _currentStep >= 2,
+          // 2. Dynamic Body Content based on _currentStep
+          Expanded(
+            child: _buildCurrentStepContent(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCurrentStepContent() {
+    switch (_currentStep) {
+      case 0:
+        return _buildEventSelectionStep();
+      case 1:
+        return BoothSelection(
+          // Pass callbacks to the BoothSelection widget
+          onBack: () => setState(() => _currentStep = 0),
+          onBoothSelected: (boothId) {
+            setState(() {
+              _selectedBoothId = boothId;
+              _currentStep = 2; // Move to Application Form (Step 3)
+            });
+          },
+        );
+      default:
+        return const Center(child: Text("Next Steps Coming Soon"));
+    }
+  }
+
+  Widget _buildEventSelectionStep() {
+    return Column(
+      children: [
+        // Search Bar
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: "Search event...",
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.grey[100],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+
+        // Event List from Database
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _eventsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("No events available."));
+              }
+
+              return ListView.builder(
+                itemCount: snapshot.data!.length,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemBuilder: (context, index) {
+                  var event = snapshot.data![index];
+                  bool isSelected = _selectedEventId == event['id'];
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedEventId = event['id'];
+                      });
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.blue.withValues(alpha: 0.1) : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? Colors.blue : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const CircleAvatar(
+                            backgroundColor: Colors.white,
+                            child: Icon(Icons.event, color: Colors.black),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  event['name'] ?? 'Event Name',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                Text(
+                                  event['location'] ?? 'Location',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+
+        // Navigation Buttons for Step 0
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () => context.pop(),
+                child: const Text("BACK", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: _selectedEventId == null 
+                  ? null 
+                  : () {
+                    setState(() {
+                      _currentStep = 1; // Move to Booth Selection
+                    });
+                  },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                ),
+                child: const Text("NEXT"),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

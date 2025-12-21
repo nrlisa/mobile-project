@@ -6,11 +6,11 @@ import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/guest/guest_home.dart';
 import '../screens/guest/event_details.dart';
-import '../screens/guest/guest_floorplan_viewer.dart'; // [Inference] Imported the Read-Only viewer
+import '../screens/guest/guest_floorplan_viewer.dart'; 
 
 // EXHIBITOR IMPORTS
 import '../screens/exhibitor/exhibitor_dashboard.dart';
-import '../screens/exhibitor/application_flow_screen.dart';
+import '../screens/exhibitor/application_flow_screen.dart'; // <--- Check this file specifically
 import '../screens/exhibitor/my_applications.dart';
 
 // ORGANIZER IMPORTS
@@ -30,7 +30,6 @@ import '../screens/admin/admin_floorplan.dart';
 final GoRouter router = GoRouter(
   initialLocation: '/guest', 
   
-  // FIXED: Redirect root "/" to "/guest" to prevent the logout crash
   redirect: (context, state) {
     if (state.uri.toString() == '/') {
       return '/guest'; 
@@ -66,13 +65,12 @@ final GoRouter router = GoRouter(
       },
     ),
 
-    // FIXED: Route for floorplan-viewer now uses the Read-Only viewer
     GoRoute(
       path: '/floorplan-viewer',
       builder: (context, state) {
         final args = state.extra as Map<String, dynamic>? ?? 
             {'eventId': 'default', 'eventName': 'Exhibition'};
-        return GuestFloorplanViewer( // Use the simple view without buttons [Inference]
+        return GuestFloorplanViewer( 
           eventId: args['eventId'],
           eventName: args['eventName'],
         );
@@ -86,6 +84,7 @@ final GoRouter router = GoRouter(
       routes: [
         GoRoute(
           path: 'flow',
+          // Ensure this line uses the EXACT class name defined in application_flow_screen.dart
           builder: (context, state) => const ApplicationFlowScreen(),
         ),
         GoRoute(
