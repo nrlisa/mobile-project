@@ -49,7 +49,7 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
         eventName: _selectedEvent?.name ?? 'Unknown Event',
         boothId: _selectedBooth?.id ?? 'N/A',
         applicationData: _applicationData,
-        totalAmount: _calculateGrandTotal(),
+        totalAmount: _calculateGrandTotal(), eventId: '',
       );
     } catch (e) {
       debugPrint("❌ Error saving application via DbService: $e");

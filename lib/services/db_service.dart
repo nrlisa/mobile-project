@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/event_model.dart';
+import '../models/booth.dart'; 
 
 class DbService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -123,24 +124,40 @@ class DbService {
     }
   }
 
-  Future<void> generateBooths(String eventId, int count) async {
+  // UPDATED: This creates exactly what the Organizer inputs (Size, Price, Qty)
+  // It also clears old booths for this event to keep data clean.
+  Future<void> createBoothsBatch(String eventId, String size, double price, int count) async {
     try {
-      final batch = _firestore.batch();
+      final collectionRef = _firestore.collection('events').doc(eventId).collection('booths');
+
+      // 1. DELETE EXISTING BOOTHS (Ensures clean slate)
+      final existingBooths = await collectionRef.get();
+      final deleteBatch = _firestore.batch();
+      for (var doc in existingBooths.docs) {
+        deleteBatch.delete(doc.reference);
+      }
+      await deleteBatch.commit(); 
+
+      // 2. CREATE NEW BOOTHS
+      final createBatch = _firestore.batch();
+      
+      // Determine prefix: S=Small, M=Medium, L=Large
+      String prefix = size.isNotEmpty ? size.substring(0, 1).toUpperCase() : "B";
+      
       for (int i = 1; i <= count; i++) {
-        final boothRef = _firestore
-            .collection('events')
-            .doc(eventId)
-            .collection('booths')
-            .doc();
-            
-        batch.set(boothRef, {
-          'boothNumber': 'B$i',
+        final docRef = collectionRef.doc();
+        createBatch.set(docRef, {
+          'boothNumber': '$prefix-$i', // e.g., S-1, S-2
+          'size': size,
+          'price': price, // Uses the EXACT price from input
           'status': 'available',
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
-      await batch.commit();
+      await createBatch.commit();
+      debugPrint("✅ Generated $count $size booths at RM $price for event $eventId");
     } catch (e) {
+      debugPrint("❌ Error generating booths: $e");
       rethrow;
     }
   }
@@ -173,18 +190,32 @@ class DbService {
     });
   }
 
-  Future<void> addBoothType(String? eventId, Map<String, dynamic> boothData) async {
-    final String idToUse = (eventId == null || eventId.isEmpty) ? (currentEventId ?? "") : eventId;
-    if (idToUse.isEmpty) return;
-    try {
-      await _firestore.collection('events').doc(idToUse).collection('booth_types').add(boothData);
-    } catch (e) { rethrow; }
+  // Stream specifically for Booth Objects (Organizer & Exhibitor UI)
+  Stream<List<Booth>> getBoothsStream(String eventId) {
+    if (eventId.isEmpty) return const Stream.empty();
+    return _firestore
+        .collection('events')
+        .doc(eventId)
+        .collection('booths')
+        .orderBy('createdAt') 
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Booth.fromMap(doc.data(), doc.id))
+            .toList());
   }
 
-  Stream<QuerySnapshot> getBoothsForEvent(String? eventId) {
-    final String idToUse = (eventId == null || eventId.isEmpty) ? (currentEventId ?? "") : eventId;
-    if (idToUse.isEmpty) return const Stream.empty(); 
-    return _firestore.collection('events').doc(idToUse).collection('booth_types').snapshots();
+  // Toggle Booth Status (Organizer Management)
+  Future<void> updateBoothStatus(String eventId, String boothId, String newStatus) async {
+    try {
+      await _firestore
+          .collection('events')
+          .doc(eventId)
+          .collection('booths')
+          .doc(boothId)
+          .update({'status': newStatus});
+    } catch (e) {
+      rethrow;
+    }
   }
 
   // --- 6. APPLICATION MANAGEMENT ---
@@ -192,38 +223,46 @@ class DbService {
   Future<void> submitApplication({
     required String userId,
     required String eventName,
+    required String eventId, // Added: needed to find the booth
     required String boothId,
     required Map<String, dynamic> applicationData,
     required double totalAmount,
   }) async {
     try {
+      // 1. Create the Application Record
       await _firestore.collection('applications').add({
         'userId': userId,
         'eventName': eventName,
+        'eventId': eventId,
         'boothId': boothId,
         'companyName': applicationData['details']?['companyName'] ?? 'N/A',
         'companyDescription': applicationData['details']?['description'] ?? 'N/A',
         'exhibitProfile': applicationData['details']?['exhibitProfile'] ?? 'N/A',
         'addons': applicationData['addons'] ?? [],
         'totalAmount': totalAmount,
-        'status': 'Pending', // Mandatory initial status
+        'status': 'Pending', 
         'submissionDate': FieldValue.serverTimestamp(),
       });
-      debugPrint("✅ Application stored in Firestore with status: Pending");
+
+      // 2. Mark the Booth as 'booked' so no one else can take it
+      await _firestore
+          .collection('events')
+          .doc(eventId)
+          .collection('booths')
+          .doc(boothId)
+          .update({'status': 'booked'});
+
+      debugPrint("✅ Application stored & Booth marked as Booked");
     } catch (e) {
       debugPrint("❌ Firestore Application Error: $e");
       rethrow;
     }
   }
 
-  // FIX: Temporary removal of orderBy to bypass Index error so you can see data
   Stream<QuerySnapshot> getExhibitorApplications(String userId) {
     return _firestore
         .collection('applications')
         .where('userId', isEqualTo: userId)
-        // [Unverified] Once you click the link in your console error and create the index, 
-        // you can uncomment the line below to restore sorting.
-        // .orderBy('submissionDate', descending: true) 
         .snapshots();
   }
 
@@ -246,4 +285,6 @@ class DbService {
       rethrow;
     }
   }
+
+  Future<void> generateBooths(String eventId, int count) async {}
 }
