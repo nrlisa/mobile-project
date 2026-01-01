@@ -1,312 +1,254 @@
 import 'package:flutter/material.dart';
-import '../../models/booth.dart'; // Ensure this matches your project structure
+import '../../../services/db_service.dart';
+import '../../../models/booth.dart';
 
-class BoothSelectionMap extends StatefulWidget {
-  final List<Booth> booths;
-  final Function(Booth?) onBoothSelected;
+class BoothSelection extends StatefulWidget {
+  final String eventId; // Added eventId to fetch specific booths
+  final Function(String) onBoothSelected;
+  final VoidCallback onBack;
 
-  const BoothSelectionMap({
+  const BoothSelection({
     super.key,
-    required this.booths,
+    required this.eventId,
     required this.onBoothSelected,
+    required this.onBack,
   });
 
   @override
-  State<BoothSelectionMap> createState() => _BoothSelectionMapState();
+  State<BoothSelection> createState() => _BoothSelectionState();
 }
 
-class _BoothSelectionMapState extends State<BoothSelectionMap> {
+class _BoothSelectionState extends State<BoothSelection> {
   String? _selectedBoothId;
-
-  // 1. Map Booth Numbers to Hall Names (Logic: S=Hall A, M=Hall B, L=Hall C)
-  String _getHallName(Booth booth) {
-    if (booth.boothNumber.contains('-')) {
-      final prefix = booth.boothNumber.split('-').first.toUpperCase();
-      switch (prefix) {
-        case 'S': return "A (Small)";
-        case 'M': return "B (Medium)";
-        case 'L': return "C (Large)";
-        default: return prefix; 
-      }
-    }
-    return "Main Hall";
-  }
-
-  // 2. Group booths by Hall
-  Map<String, List<Booth>> get _boothsByHall {
-    final Map<String, List<Booth>> grouped = {};
-    
-    // Sort booths by number first to ensure order (S-1, S-2...)
-    final sortedBooths = List<Booth>.from(widget.booths)
-      ..sort((a, b) => a.boothNumber.compareTo(b.boothNumber));
-
-    for (final booth in sortedBooths) {
-      final hall = _getHallName(booth);
-      if (!grouped.containsKey(hall)) {
-        grouped[hall] = [];
-      }
-      grouped[hall]!.add(booth);
-    }
-    
-    // Sort keys so Hall A appears before Hall B
-    return Map.fromEntries(
-      grouped.entries.toList()..sort((a, b) => a.key.compareTo(b.key))
-    );
-  }
-
-  void _handleBoothTap(Booth booth) {
-    // Block selection if not available
-    if (booth.status.toLowerCase() != 'available') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Booth ${booth.boothNumber} is ${booth.status}."),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      if (_selectedBoothId == booth.id) {
-        _selectedBoothId = null;
-        widget.onBoothSelected(null);
-      } else {
-        _selectedBoothId = booth.id;
-        widget.onBoothSelected(booth);
-        _showBoothDetailsModal(context, booth);
-      }
-    });
-  }
-
-  Color _getBoothColor(Booth booth) {
-    if (_selectedBoothId == booth.id) {
-      return Colors.blue; // Selected
-    }
-    switch (booth.status.toLowerCase()) {
-      case 'available':
-        return Colors.green.shade300;
-      case 'booked':
-        return Colors.red.shade300;
-      case 'reserved':
-        return Colors.orange.shade300;
-      default:
-        return Colors.grey.shade300;
-    }
-  }
+  final DbService _dbService = DbService();
 
   @override
   Widget build(BuildContext context) {
-    if (widget.booths.isEmpty) {
-      return const Center(child: Text("No booths available."));
-    }
+    return StreamBuilder<List<Booth>>(
+      stream: _dbService.getBoothsStream(widget.eventId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return InteractiveViewer(
-      boundaryMargin: const EdgeInsets.all(100),
-      minScale: 0.5,
-      maxScale: 4.0,
-      constrained: false, // Allows scrolling beyond screen bounds
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: _boothsByHall.entries.map((entry) {
-            final hallName = entry.key;
-            final booths = entry.value;
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // --- Hall Header ---
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.blueGrey.shade200),
+        final booths = snapshot.data ?? [];
+
+        // Filter booths by Hall/Size logic
+        // Logic: 'S' prefix -> Hall A, 'M' prefix -> Hall B, 'L' prefix -> Hall C
+        final hallABooths = booths.where((b) => b.size == 'Small' || b.boothNumber.startsWith('S')).toList();
+        final hallBBooths = booths.where((b) => b.size == 'Medium' || b.boothNumber.startsWith('M')).toList();
+        final hallCBooths = booths.where((b) => b.size == 'Large' || b.boothNumber.startsWith('L')).toList();
+
+        return DefaultTabController(
+          length: 3, 
+          child: Column(
+            children: [
+              // 1. Legend
+              _buildLegend(),
+
+              // 2. Tabs
+              const TabBar(
+                labelColor: Colors.blue,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.blue,
+                tabs: [
+                  Tab(text: "Hall A (Small)"),
+                  Tab(text: "Hall B (Medium)"),
+                  Tab(text: "Hall C (Large)"),
+                ],
+              ),
+
+              // 3. Grids
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildBoothGrid("A", "Small", 4, 1.0, hallABooths),
+                    _buildBoothGrid("B", "Medium", 3, 1.3, hallBBooths),
+                    _buildBoothGrid("C", "Large", 2, 1.6, hallCBooths),
+                  ],
+                ),
+              ),
+
+              // 4. Navigation
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: widget.onBack,
+                      child: const Text("BACK", style: TextStyle(color: Colors.grey)),
                     ),
-                    child: Text(
-                      "Hall $hallName",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
+                    ElevatedButton(
+                      onPressed: _selectedBoothId == null
+                          ? null
+                          : () => widget.onBoothSelected(_selectedBoothId!),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
                       ),
+                      child: const Text("NEXT"),
                     ),
-                  ),
+                  ],
                 ),
-                
-                // --- Booth Grid ---
-                SizedBox(
-                  width: 600, // Fixed width for consistent map feel
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 6, // 6 booths per row
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: booths.length,
-                    itemBuilder: (context, index) {
-                      final booth = booths[index];
-                      return GestureDetector(
-                        onTap: () => _handleBoothTap(booth),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: _getBoothColor(booth),
-                            borderRadius: BorderRadius.circular(4),
-                            border: _selectedBoothId == booth.id
-                                ? Border.all(color: Colors.blue.shade900, width: 3)
-                                : Border.all(color: Colors.white, width: 1),
-                            boxShadow: [
-                              BoxShadow(
-                                // ignore: deprecated_member_use
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 2,
-                                offset: const Offset(1, 1),
-                              )
-                            ],
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  booth.boothNumber, 
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                if (booth.status.toLowerCase() == 'available')
-                                  Text(
-                                    'RM${booth.price.toInt()}',
-                                    style: const TextStyle(fontSize: 8, color: Colors.white),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 30), // Spacing between halls
-              ],
-            );
-          }).toList(),
-        ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLegend() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _legendItem(Colors.green, "Available"),
+          const SizedBox(width: 15),
+          _legendItem(Colors.red, "Booked"),
+          const SizedBox(width: 15),
+          _legendItem(Colors.blue, "Selected"),
+        ],
       ),
     );
   }
 
-  void _showBoothDetailsModal(BuildContext context, Booth booth) {
-    // Helper to generate display data based on size
-    String dimensions = "3m x 3m";
-    List<String> features = ["Standard Power Socket", "1 Table, 2 Chairs"];
+  Widget _legendItem(Color color, String label) => Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 10)),
+        ],
+      );
 
-    if (booth.size == 'Medium') {
-      dimensions = "5m x 5m";
-      features = ["2 Power Sockets", "2 Tables, 4 Chairs", "Spotlights"];
-    } else if (booth.size == 'Large') {
-      dimensions = "8m x 8m";
-      features = ["4 Power Sockets", "Meeting Area", "Counter", "Carpeted"];
+  Widget _buildBoothGrid(String hall, String sizeLabel, int crossAxis, double ratio, List<Booth> booths) {
+    if (booths.isEmpty) {
+      return Center(child: Text("No $sizeLabel booths available in Hall $hall"));
     }
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text("$sizeLabel Booths in $hall",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxis,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: ratio,
+            ),
+            itemCount: booths.length,
+            itemBuilder: (context, index) {
+              final booth = booths[index];
+              bool isBooked = booth.status.toLowerCase() == 'booked';
+              bool isSelected = _selectedBoothId == booth.id;
+
+              Color bgColor = isSelected
+                  ? Colors.blue
+                  : (isBooked ? Colors.red : Colors.green);
+
+              return GestureDetector(
+                onTap: isBooked ? null : () => _showBoothPopup(booth),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected ? Border.all(color: Colors.white, width: 2) : null,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          booth.boothNumber,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        if (!isBooked)
+                          Text(
+                            "RM${booth.price.toInt()}",
+                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        ),
+      ],
+    );
+  }
+
+  void _showBoothPopup(Booth booth) {
+    String dimensions = (booth.size == "Small") ? "3m x 3m" : (booth.size == "Medium") ? "5m x 5m" : "8m x 8m";
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Booth ${booth.boothNumber}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              Text(
-                '${booth.size} Booth',
-                style: TextStyle(color: Colors.grey[600], fontSize: 16),
-              ),
-              const SizedBox(height: 16),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: booth.status.toLowerCase() == 'available' ? Colors.green[100] : Colors.orange[100],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      booth.status.toUpperCase(),
-                      style: TextStyle(
-                        color: booth.status.toLowerCase() == 'available' ? Colors.green[800] : Colors.orange[800],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    'RM${booth.price.toStringAsFixed(0)}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Text('Dimensions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Text(dimensions, style: const TextStyle(fontSize: 16, color: Colors.black54)),
-              const SizedBox(height: 16),
-              const Text('Included Features', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ...features.map((feature) => Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text(feature),
-                  ],
-                ),
-              )),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {
-                   // Selection logic is handled in parent, just close modal
-                   Navigator.pop(context);
-                }, 
-                child: const Text("CONFIRM SELECTION", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              )
+              const Icon(Icons.info_outline, color: Colors.blue),
+              const SizedBox(width: 10),
+              Text("Booth ${booth.boothNumber}"),
             ],
           ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Category:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("${booth.size} Booth"),
+              const SizedBox(height: 10),
+              const Text("Dimensions:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(dimensions),
+              const SizedBox(height: 10),
+              const Text("Price:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("RM ${booth.price.toStringAsFixed(2)}", 
+                  style: const TextStyle(fontSize: 18, color: Colors.blue, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const SizedBox(width: 5),
+                  Text("Status: ${booth.status}", style: const TextStyle(color: Colors.green)),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("CANCEL", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() => _selectedBoothId = booth.id);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: const Text("SELECT BOOTH"),
+            ),
+          ],
         );
       },
     );

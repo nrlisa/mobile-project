@@ -124,38 +124,43 @@ class DbService {
     }
   }
 
-  // UPDATED: This creates exactly what the Organizer inputs (Size, Price, Qty)
-  // It also clears old booths for this event to keep data clean.
+  // UPDATED: Appends booths instead of overwriting.
+  // Checks for existing booths of the same size to continue numbering correctly.
   Future<void> createBoothsBatch(String eventId, String size, double price, int count) async {
     try {
       final collectionRef = _firestore.collection('events').doc(eventId).collection('booths');
 
-      // 1. DELETE EXISTING BOOTHS (Ensures clean slate)
-      final existingBooths = await collectionRef.get();
-      final deleteBatch = _firestore.batch();
-      for (var doc in existingBooths.docs) {
-        deleteBatch.delete(doc.reference);
-      }
-      await deleteBatch.commit(); 
+      // 1. DETERMINE STARTING NUMBER
+      // We query how many booths of this specific 'size' already exist.
+      // This prevents duplicates if you add more booths later.
+      final existingBoothsSnapshot = await collectionRef
+          .where('size', isEqualTo: size)
+          .get();
+      
+      int startNumber = existingBoothsSnapshot.docs.length + 1;
 
-      // 2. CREATE NEW BOOTHS
+      // 2. CREATE NEW BOOTHS (Batch Write)
       final createBatch = _firestore.batch();
       
       // Determine prefix: S=Small, M=Medium, L=Large
       String prefix = size.isNotEmpty ? size.substring(0, 1).toUpperCase() : "B";
       
-      for (int i = 1; i <= count; i++) {
+      for (int i = 0; i < count; i++) {
+        int currentNumber = startNumber + i;
         final docRef = collectionRef.doc();
+        
         createBatch.set(docRef, {
-          'boothNumber': '$prefix-$i', // e.g., S-1, S-2
+          'boothNumber': '$prefix-$currentNumber', // e.g., S-1... or S-11 if appending
           'size': size,
-          'price': price, // Uses the EXACT price from input
+          'price': price, 
           'status': 'available',
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+      
       await createBatch.commit();
-      debugPrint("✅ Generated $count $size booths at RM $price for event $eventId");
+      debugPrint("✅ Added $count $size booths starting from $prefix-$startNumber for event $eventId");
+      
     } catch (e) {
       debugPrint("❌ Error generating booths: $e");
       rethrow;

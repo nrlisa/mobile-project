@@ -80,7 +80,7 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
               _selectedBoothId = boothId;
               _currentStep = 2; // Move to Application Form (Step 3)
             });
-          },
+          }, eventId: '',
         );
       case 2:
         return ApplicationForm(

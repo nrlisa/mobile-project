@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../models/types.dart';
-import '../../services/db_service.dart'; // Ensure this import is correct
+// --- FIXED IMPORTS ---
+import '../../models/types.dart' hide Booth; // Hides the conflicting Booth class
+import '../../models/booth.dart';            // Uses this Booth class instead
+import '../../services/db_service.dart';
+
 import 'steps/event_selection.dart';
 import 'steps/booth_selection.dart';
 import 'steps/application_form.dart';
@@ -30,7 +33,6 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
     double boothPrice = _selectedBooth?.price ?? 0.0;
     final addons = _applicationData['addons'] as List<dynamic>? ?? [];
     
-    // Using previousValue to avoid linting naming conflicts
     double addonsTotal = addons.fold(0.0, (previousValue, item) => previousValue + (item['price'] ?? 0.0));    
     
     double subtotal = boothPrice + addonsTotal;
@@ -38,7 +40,6 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
     return subtotal + tax;
   }
 
-  // UPDATED: Now uses DbService for centralized database logic
   Future<void> _saveApplicationToDatabase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -47,9 +48,10 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
       await _dbService.submitApplication(
         userId: user.uid,
         eventName: _selectedEvent?.name ?? 'Unknown Event',
+        eventId: _selectedEvent?.id ?? '', 
         boothId: _selectedBooth?.id ?? 'N/A',
         applicationData: _applicationData,
-        totalAmount: _calculateGrandTotal(), eventId: '',
+        totalAmount: _calculateGrandTotal(),
       );
     } catch (e) {
       debugPrint("❌ Error saving application via DbService: $e");
@@ -111,16 +113,21 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
           });
         });
       case 2:
+        if (_selectedEvent == null) {
+          return const Center(child: Text("Error: No event selected."));
+        }
         return BoothSelection(
+          eventId: _selectedEvent!.id, 
           onBack: () => setState(() => _currentStep = 1),
           onBoothSelected: (id) {
             setState(() {
+              // Now creating the Booth object using the correct model
               _selectedBooth = Booth(
                 id: id,
-                hall: id.startsWith('A') ? 'Hall A' : 'Hall B',
-                type: 'Standard',
+                boothNumber: id, // Assign ID as placeholder number
+                size: 'Standard', 
                 status: 'selected',
-                price: id.startsWith('A') ? 1000.0 : 2500.0,
+                price: id.startsWith('A') ? 1000.0 : 2500.0, 
               );
               _currentStep = 3;
             });
@@ -156,11 +163,9 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
         builder: (context) => DummyPaymentPage(
           amount: _calculateGrandTotal(),
           onPaymentSuccess: () async {
-            // Wait for DB save to finish
             await _saveApplicationToDatabase(); 
             
             if (mounted) {
-              // Standard hyphenated path to avoid 404
               // ignore: use_build_context_synchronously
               context.go('/exhibitor/my-applications'); 
             }

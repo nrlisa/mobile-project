@@ -7,7 +7,7 @@ class BoothSelection extends StatefulWidget {
   const BoothSelection({
     super.key,
     required this.onBoothSelected,
-    required this.onBack,
+    required this.onBack, required String eventId,
   });
 
   @override
