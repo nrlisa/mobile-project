@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../models/types.dart';
+import '../../../models/event_model.dart';
 import '../../../services/db_service.dart';
 
 class EventSelection extends StatelessWidget {
-  final Function(Event) onEventSelected;
+  final Function(EventModel) onEventSelected;
   final DbService _dbService = DbService();
 
   EventSelection({super.key, required this.onEventSelected});
@@ -27,24 +27,18 @@ class EventSelection extends StatelessWidget {
             final data = rawData[index];
             
             // Updated to use named parameters as defined in types.dart
-            final event = Event(
-              id: data['id'] ?? '',
-              name: data['name'] ?? 'Unnamed Exhibition',
-              date: data['date']?.toString() ?? '',
-              location: data['location'] ?? '',
-              icon: data['icon'] ?? 'business',
-            );
+            final event = EventModel.fromJson(data); 
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: const Icon(Icons.business, color: Colors.blue),
-                title: Text(event.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("${event.location}\n${event.date}"),
-                onTap: () => onEventSelected(event),
-              ),
-            );
-          },
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: ListTile(
+      leading: const Icon(Icons.business, color: Colors.blue),
+      title: Text(event.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text("${event.location}\n${event.date}"), // Use real date fields
+      onTap: () => onEventSelected(event),
+    ),
+  );
+}
         );
       },
     );

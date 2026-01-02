@@ -75,12 +75,12 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
       case 1:
         return BoothSelection(
           onBack: () => setState(() => _currentStep = 0),
-          onBoothSelected: (boothId) {
+          onBoothSelected: (booth) {
             setState(() {
-              _selectedBoothId = boothId;
+              _selectedBoothId = booth.id;
               _currentStep = 2; // Move to Application Form (Step 3)
             });
-          }, eventId: '',
+          }, eventId: _selectedEventId ?? '',
         );
       case 2:
         return ApplicationForm(

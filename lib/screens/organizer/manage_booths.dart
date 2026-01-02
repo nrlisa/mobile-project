@@ -70,7 +70,7 @@ class ManageBoothsScreen extends StatelessWidget {
   Widget _buildOrganizerBoothTile(BuildContext context, DbService db, Booth booth) {
     Color color;
     Color textColor = Colors.black87;
-
+booth.status.toLowerCase();
     // Set colors based on status
     if (booth.status == 'available') {
       color = Colors.green.shade100;

@@ -38,4 +38,6 @@ class EventModel {
       organizerId: json['organizerId'] ?? '',
     );
   }
+
+  get startDate => null;
 }

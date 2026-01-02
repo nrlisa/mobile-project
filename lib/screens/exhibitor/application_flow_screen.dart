@@ -1,231 +1,159 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../../models/booth.dart'; 
+import '../../../services/db_service.dart';
 
-// --- FIXED IMPORTS ---
-import '../../models/types.dart' hide Booth; // Hides the conflicting Booth class
-import '../../models/booth.dart';            // Uses this Booth class instead
-import '../../services/db_service.dart';
+class BoothSelection extends StatefulWidget {
+  final String eventId; 
+  final Function(Booth) onBoothSelected; // FIXED: Change String to Booth
+  final VoidCallback onBack;
 
-import 'steps/event_selection.dart';
-import 'steps/booth_selection.dart';
-import 'steps/application_form.dart';
-import 'steps/review_application.dart';
-import 'steps/dummy_payment_page.dart';
-
-class ApplicationFlowScreen extends StatefulWidget {
-  const ApplicationFlowScreen({super.key});
+  const BoothSelection({
+    super.key,
+    required this.eventId, 
+    required this.onBoothSelected,
+    required this.onBack,
+  });
 
   @override
-  State<ApplicationFlowScreen> createState() => _ApplicationFlowScreenState();
+  State<BoothSelection> createState() => _BoothSelectionState();
 }
 
-class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
-  int _currentStep = 1;
-  Booth? _selectedBooth;
-  Map<String, dynamic> _applicationData = {};
-  Event? _selectedEvent;
-  
-  // Initialize DbService
-  final DbService _dbService = DbService(); 
-
-  double _calculateGrandTotal() {
-    double boothPrice = _selectedBooth?.price ?? 0.0;
-    final addons = _applicationData['addons'] as List<dynamic>? ?? [];
-    
-    double addonsTotal = addons.fold(0.0, (previousValue, item) => previousValue + (item['price'] ?? 0.0));    
-    
-    double subtotal = boothPrice + addonsTotal;
-    double tax = subtotal * 0.06; // 6% Tax
-    return subtotal + tax;
-  }
-
-  Future<void> _saveApplicationToDatabase() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await _dbService.submitApplication(
-        userId: user.uid,
-        eventName: _selectedEvent?.name ?? 'Unknown Event',
-        eventId: _selectedEvent?.id ?? '', 
-        boothId: _selectedBooth?.id ?? 'N/A',
-        applicationData: _applicationData,
-        totalAmount: _calculateGrandTotal(),
-      );
-    } catch (e) {
-      debugPrint("❌ Error saving application via DbService: $e");
-    }
-  }
+class _BoothSelectionState extends State<BoothSelection> {
+  String? _selectedBoothId;
+  Booth? _selectedBoothObject; 
+  final DbService _dbService = DbService();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(_getAppBarTitle()),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_currentStep > 1) {
-              setState(() => _currentStep--);
-            } else {
-              context.pop();
-            }
-          },
-        ),
-      ),
-      body: Column(
-        children: [
-          _buildStepper(), 
-          const Divider(height: 1),
-          Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: _buildCurrentStep(),
-            ),
+    return StreamBuilder<List<Booth>>(
+      stream: _dbService.getBoothsStream(widget.eventId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+
+        final booths = snapshot.data ?? [];
+
+        // Filtering based on real Firebase data
+        final hallABooths = booths.where((b) => b.size == 'Small' || b.boothNumber.startsWith('S')).toList();
+        final hallBBooths = booths.where((b) => b.size == 'Medium' || b.boothNumber.startsWith('M')).toList();
+        final hallCBooths = booths.where((b) => b.size == 'Large' || b.boothNumber.startsWith('L')).toList();
+
+        return DefaultTabController(
+          length: 3, 
+          child: Column(
+            children: [
+              _buildLegend(),
+              const TabBar(
+                labelColor: Colors.blue,
+                tabs: [
+                  Tab(text: "Hall A (Small)"),
+                  Tab(text: "Hall B (Medium)"),
+                  Tab(text: "Hall C (Large)"),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildBoothGrid("A", "Small", 4, 1.0, hallABooths),
+                    _buildBoothGrid("B", "Medium", 3, 1.3, hallBBooths),
+                    _buildBoothGrid("C", "Large", 2, 1.6, hallCBooths),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(onPressed: widget.onBack, child: const Text("BACK")),
+                    ElevatedButton(
+                      onPressed: _selectedBoothObject == null
+                          ? null
+                          : () => widget.onBoothSelected(_selectedBoothObject!), // FIXED: Pass the object
+                      child: const Text("NEXT"),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBoothGrid(String hall, String sizeLabel, int crossAxis, double ratio, List<Booth> booths) {
+    if (booths.isEmpty) return const Center(child: Text("No booths found."));
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxis,
+        childAspectRatio: ratio,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+      ),
+      itemCount: booths.length, // Uses real Firebase count
+      itemBuilder: (context, index) {
+        final booth = booths[index];
+        bool isBooked = booth.status.toLowerCase() == 'booked';
+        bool isSelected = _selectedBoothId == booth.id;
+
+        return GestureDetector(
+          onTap: isBooked ? null : () => _showBoothPopup(booth),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.blue : (isBooked ? Colors.red.shade100 : Colors.green.shade100),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(child: Text(booth.boothNumber)), // Real Number
+          ),
+        );
+      },
+    );
+  }
+
+  void _showBoothPopup(Booth booth) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Select Booth ${booth.boothNumber}"),
+        content: Text("Price: RM ${booth.price}\nSize: ${booth.size}"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _selectedBoothId = booth.id;
+                _selectedBoothObject = booth;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Select"),
+          )
         ],
       ),
     );
   }
 
-  String _getAppBarTitle() {
-    switch (_currentStep) {
-      case 1: return "Select Exhibition";
-      case 2: return "Select Booth";
-      case 3: return "Application Form";
-      case 4: return "Review & Submit";
-      default: return "Booking";
-    }
-  }
-
-  Widget _buildCurrentStep() {
-    switch (_currentStep) {
-      case 1:
-        return EventSelection(onEventSelected: (ev) {
-          setState(() {
-            _selectedEvent = ev;
-            _currentStep = 2;
-          });
-        });
-      case 2:
-        if (_selectedEvent == null) {
-          return const Center(child: Text("Error: No event selected."));
-        }
-        return BoothSelection(
-          eventId: _selectedEvent!.id, 
-          onBack: () => setState(() => _currentStep = 1),
-          onBoothSelected: (id) {
-            setState(() {
-              // Now creating the Booth object using the correct model
-              _selectedBooth = Booth(
-                id: id,
-                boothNumber: id, // Assign ID as placeholder number
-                size: 'Standard', 
-                status: 'selected',
-                price: id.startsWith('A') ? 1000.0 : 2500.0, 
-              );
-              _currentStep = 3;
-            });
-          },
-        );
-      case 3:
-        return ApplicationForm(
-          onBack: () => setState(() => _currentStep = 2),
-          onFormSubmitted: (data) {
-            setState(() {
-              _applicationData = data;
-              _currentStep = 4;
-            });
-          },
-        );
-      case 4:
-        return ReviewApplication(
-          selectedEvent: _selectedEvent,
-          boothId: _selectedBooth?.id ?? '',
-          formData: _applicationData,
-          onBack: () => setState(() => _currentStep = 3),
-          onSubmit: () => _navigateToPayment(),
-        );
-      default:
-        return const Center(child: Text("Error"));
-    }
-  }
-
-  void _navigateToPayment() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DummyPaymentPage(
-          amount: _calculateGrandTotal(),
-          onPaymentSuccess: () async {
-            await _saveApplicationToDatabase(); 
-            
-            if (mounted) {
-              // ignore: use_build_context_synchronously
-              context.go('/exhibitor/my-applications'); 
-            }
-          },
-        ),
-      ),
+  Widget _buildLegend() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _legendItem(Colors.green.shade100, "Available"),
+        _legendItem(Colors.red.shade100, "Booked"),
+        _legendItem(Colors.blue, "Selected"),
+      ],
     );
   }
 
-  Widget _buildStepper() {
-    final List<String> stepTitles = ['Select Event', 'Choose Booth', 'Application Form', 'Review & Submit'];
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(stepTitles.length, (index) {
-          int stepNum = index + 1;
-          bool isCompleted = stepNum < _currentStep;
-          bool isCurrent = stepNum == _currentStep;
-          Color color = (isCompleted || isCurrent) ? Colors.blue : Colors.grey[300]!;
-
-          return Expanded(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: Container(height: 2, color: index == 0 ? Colors.transparent : (stepNum <= _currentStep ? Colors.blue : Colors.grey[300]))),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        boxShadow: isCurrent ? [BoxShadow(color: Colors.blue.withValues(alpha: 0.3), blurRadius: 4, spreadRadius: 1)] : null,
-                      ),
-                      child: Center(
-                        child: isCompleted 
-                          ? const Icon(Icons.check, size: 16, color: Colors.white)
-                          : Text("$stepNum", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      ),
-                    ),
-                    Expanded(child: Container(height: 2, color: index == stepTitles.length - 1 ? Colors.transparent : (stepNum < _currentStep ? Colors.blue : Colors.grey[300]))),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  stepTitles[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    color: isCurrent ? Colors.black : Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
+  Widget _legendItem(Color color, String label) => Row(children: [
+    Container(width: 12, height: 12, color: color),
+    const SizedBox(width: 4),
+    Text(label, style: const TextStyle(fontSize: 10)),
+    const SizedBox(width: 10),
+  ]);
 }
