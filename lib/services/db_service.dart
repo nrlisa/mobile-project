@@ -67,16 +67,34 @@ class DbService {
 
   Future<void> saveFloorplanLayout(String eventId, XFile imageFile) async {
     try {
+      // 1. Convert to Base64
       Uint8List imageBytes = await imageFile.readAsBytes();
       String base64Image = base64Encode(imageBytes);
+      String imageUrl = 'data:image/jpeg;base64,$base64Image';
+      
+      // Check Firestore Document Limit (1MB = 1,048,576 bytes)
+      if (imageUrl.length > 1000000) {
+        throw Exception("Image is too large for Firestore (Limit 1MB). Please use a smaller image.");
+      }
 
-      // Save to global configuration so it applies to ALL events
+      // 2. Save to Firestore
       await _firestore.collection('settings').doc('global_config').set({
         'sharedLayout': [
-          {'imageUrl': 'data:image/png;base64,$base64Image'}
+          {'imageUrl': imageUrl}
         ],
       }, SetOptions(merge: true));
-      debugPrint("✅ Base64 Image saved to Global Config");
+      debugPrint("✅ Base64 Image saved to Firestore");
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteFloorplanLayout() async {
+    try {
+      await _firestore.collection('settings').doc('global_config').update({
+        'sharedLayout': FieldValue.delete(),
+      });
+      debugPrint("✅ Floorplan deleted from Global Config");
     } catch (e) {
       rethrow;
     }
@@ -91,6 +109,7 @@ class DbService {
       }
       return [];
     } catch (e) {
+      debugPrint("❌ Error fetching floorplan (DbService): $e");
       return [];
     }
   }

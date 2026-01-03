@@ -48,9 +48,9 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery, 
-      imageQuality: 50, // Helps stay under Firestore's 1MB document limit
-      maxWidth: 800,    // Force resize width to max 800px
-      maxHeight: 800,   // Force resize height to max 800px
+      imageQuality: 25, // Slightly lower to ensure safety margin
+      maxWidth: 600,    // Reduced width
+      maxHeight: 600,   // Reduced height
     );
 
     if (image == null) return;
@@ -79,6 +79,49 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
     }
   }
 
+  Future<void> _deleteMap() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Floorplan"),
+        content: const Text("Are you sure you want to delete the current floorplan?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _dbService.deleteFloorplanLayout();
+      setState(() => _imageUrl = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Floorplan deleted successfully.")),
+        );
+      }
+    } catch (e) {
+      debugPrint("Delete Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Delete Failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,7 +133,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
               child: Column(
                 children: [
                   const Text(
-                    "Note: Images are saved as text in Firestore. Use small files.",
+                    "Upload a high-quality floorplan image.",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontStyle: FontStyle.italic),
                   ),
@@ -119,6 +162,19 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
+                  if (_imageUrl != null && _imageUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _deleteMap,
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text("Delete Current Map", style: TextStyle(color: Colors.red)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -133,7 +189,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
     // Displays the Base64 image data stored in Firestore
     if (_imageUrl!.startsWith('data:image')) {
       try {
-        final base64String = _imageUrl!.split(',').last;
+        final base64String = _imageUrl!.split(',').last.replaceAll(RegExp(r'\s+'), '');
         return Image.memory(
           base64Decode(base64String),
           fit: BoxFit.contain,
