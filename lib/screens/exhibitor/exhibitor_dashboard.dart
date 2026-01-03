@@ -8,26 +8,36 @@ class ExhibitorDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F7FF), // Light lavender/white
       appBar: AppBar(
-        title: const Text("Exhibitor Dashboard"),
+        title: const Text(
+          "Exhibitor Dashboard",
+          style: TextStyle(color: Color(0xFF222222), fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Color(0xFF222222)),
             onPressed: () {
               AuthService().logout();
-              context.go('/');
+              context.go('/guest');
             },
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               "Welcome, Exhibitor",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222222), // Dark Charcoal
+              ),
             ),
             const SizedBox(height: 20),
             
@@ -35,9 +45,10 @@ class ExhibitorDashboard extends StatelessWidget {
             _buildDashboardCard(
               context,
               title: "Book Booths",
-              subtitle: "Browse events and reserve your space",
-              icon: Icons.edit_calendar,
-              color: Colors.blue,
+              subtitle: "Explore available venues and secure your vendor space.",
+              icon: Icons.storefront,
+              iconColor: const Color(0xFF2E5BFF), // Deeper blue
+              bgColor: const Color(0xFF2E5BFF).withValues(alpha: 0.1),
               // Navigates to the flow where exhibitors pick an event
               onTap: () => context.push('/exhibitor/flow'), 
             ),
@@ -48,9 +59,10 @@ class ExhibitorDashboard extends StatelessWidget {
             _buildDashboardCard(
               context,
               title: "My Applications",
-              subtitle: "View and manage your booth bookings",
-              icon: Icons.assignment,
-              color: Colors.green,
+              subtitle: "Track the status and history of your exhibition requests.",
+              icon: Icons.local_activity,
+              iconColor: Colors.green,
+              bgColor: Colors.green.withValues(alpha: 0.1),
               // Navigates to the exhibitor's application history
               onTap: () => context.push('/exhibitor/my-applications'),
             ),
@@ -65,50 +77,73 @@ class ExhibitorDashboard extends StatelessWidget {
     required String title,
     required String subtitle,
     required IconData icon,
-    required Color color,
+    required Color iconColor,
+    required Color bgColor,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  // Fixed: Use withValues to avoid precision loss deprecation
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                // Icon Box
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 24),
                 ),
-                child: Icon(icon, color: color, size: 32),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                const SizedBox(width: 16),
+                
+                // Text Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF222222),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF777777), // Slate Gray
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            ],
+                
+                // Chevron
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
           ),
         ),
       ),

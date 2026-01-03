@@ -8,65 +8,72 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F7FF), // Light lavender/white
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
-        backgroundColor: Colors.red[800],
-        foregroundColor: Colors.white,
+        title: const Text(
+          "Admin Dashboard",
+          style: TextStyle(color: Color(0xFF222222), fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Color(0xFF222222)),
             onPressed: () {
               AuthService().logout();
-              context.go('/'); // Goes to root (Login)
+              context.go('/guest');
             },
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Admin Panel", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 30),
-
-            // 1. User Management (Standard Link)
-            _buildAdminButton(
-              context: context, 
-              title: "User Management", 
-              icon: Icons.people, 
-              onTap: () => context.push('/admin/users')
+            const Text(
+              "System Administration",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222222), // Dark Charcoal
+              ),
             ),
+            const SizedBox(height: 20),
             
-            const SizedBox(height: 16),
-
-            // 2. Global Exhibition Management (Standard Link)
-            _buildAdminButton(
-              context: context, 
-              title: "Global Exhibition Management", 
-              icon: Icons.public, 
-              onTap: () => context.push('/admin/global-exhibitions')
+            // 1. User Management
+            _buildDashboardCard(
+              context,
+              title: "User Management",
+              subtitle: "Manage registered users and roles.",
+              icon: Icons.people_alt,
+              iconColor: Colors.orange,
+              bgColor: Colors.orange.withValues(alpha: 0.1),
+              onTap: () => context.go('/admin/users'),
             ),
-
             const SizedBox(height: 16),
 
-            // --- FIX IS HERE ---
-            // 3. Floor Plan Upload (PASSING DATA)
-            // We pass a 'Demo Event' so the next screen knows what to load.
-            _buildAdminButton(
-              context: context,
-              title: "Floor Plan Upload (Demo)",
+            // 2. Global Exhibitions
+            _buildDashboardCard(
+              context,
+              title: "Global Exhibitions",
+              subtitle: "View all exhibitions across the system.",
+              icon: Icons.public,
+              iconColor: Colors.blue,
+              bgColor: Colors.blue.withValues(alpha: 0.1),
+              onTap: () => context.go('/admin/global-exhibitions'),
+            ),
+            const SizedBox(height: 16),
+
+            // 3. Floorplan Settings
+            _buildDashboardCard(
+              context,
+              title: "Floorplan Settings",
+              subtitle: "Configure default floorplan layouts.",
               icon: Icons.map,
-              onTap: () {
-                // We use 'extra' to pass the required ID and Name
-                context.push(
-                  '/admin/floorplan', 
-                  extra: {
-                    'eventId': 'demo_event_123', 
-                    'eventName': 'Demo Exhibition'
-                  }
-                );
-              },
+              iconColor: Colors.purple,
+              bgColor: Colors.purple.withValues(alpha: 0.1),
+              onTap: () => context.go('/admin/floorplan'),
             ),
           ],
         ),
@@ -74,24 +81,80 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildAdminButton({
-    required BuildContext context, 
-    required String title, 
-    required IconData icon, 
-    required VoidCallback onTap
+  Widget _buildDashboardCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required Color bgColor,
+    required VoidCallback onTap,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 28),
-      label: Text(title, style: const TextStyle(fontSize: 18)),
-      style: ElevatedButton.styleFrom(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 2,
-        side: BorderSide(color: Colors.grey.shade300),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                // Icon Box
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 24),
+                ),
+                const SizedBox(width: 16),
+                
+                // Text Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF222222),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF777777), // Slate Gray
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Chevron
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

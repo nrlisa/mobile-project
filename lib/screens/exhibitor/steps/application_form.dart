@@ -7,7 +7,7 @@ class ApplicationForm extends StatefulWidget {
   const ApplicationForm({
     super.key,
     required this.onBack,
-    required this.onFormSubmitted,
+    required this.onFormSubmitted, Map<String, dynamic>? initialData,
   });
 
   @override

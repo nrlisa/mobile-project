@@ -26,30 +26,12 @@ class AuthService {
 
       String uid = userCredential.user!.uid;
 
-      // Generate SPECIFIC ID ROLE based on role selection
-      String? organizerId;
-      String? exhibitorId;
-      String? adminId;
-
-      String timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
-
-      if (role == 'organizer') {
-        organizerId = "ORG-$timestamp";
-      } else if (role == 'exhibitor') {
-        exhibitorId = "EXH-$timestamp";
-      } else if (role == 'admin') {
-        adminId = "ADM-$timestamp";
-      }
-
       // Save User Data & Role IDs to Firestore
       await _firestore.collection('users').doc(uid).set({
         'uid': uid,
         'email': email.trim(),
         'name': name,
         'role': role,
-        'organizerId': organizerId,
-        'exhibitorId': exhibitorId,
-        'adminId': adminId,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -82,13 +64,7 @@ class AuthService {
         final data = userDoc.data() as Map<String, dynamic>;
         String role = data['role'] ?? 'guest';
         
-        // Retrieve the specific ID to save in the session
-        String specificId = "";
-        if (role == 'organizer') specificId = data['organizerId'] ?? "";
-        if (role == 'exhibitor') specificId = data['exhibitorId'] ?? "";
-        if (role == 'admin') specificId = data['adminId'] ?? "";
-
-        await _saveSession(userCredential.user!.uid, role, specificId);
+        await _saveSession(userCredential.user!.uid, role);
         debugPrint("✅ Login Success: $email ($role)");
         return null; 
       } else {
@@ -106,11 +82,10 @@ class AuthService {
   }
 
   // Helper: Save Session locally including the specific ID
-  Future<void> _saveSession(String userId, String role, String specificId) async {
+  Future<void> _saveSession(String userId, String role) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('userId', userId);
     await prefs.setString('role', role);
-    await prefs.setString('specificId', specificId);
   }
 
   // 3. GET CURRENT USER ROLE
@@ -122,6 +97,12 @@ class AuthService {
   // 4. GET CURRENT USER ID (Auth UID)
   Future<String?> getCurrentUserId() async {
     return _auth.currentUser?.uid;
+  }
+
+  // 6. GET CURRENT USER SPECIFIC ID (e.g., ORG-123)
+  Future<String?> getCurrentSpecificId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('specificId');
   }
 
   // 5. LOGOUT

@@ -28,7 +28,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
 
   Future<void> _loadExistingMap() async {
     try {
-      // Pulls from 'global' to ensure consistency
+      // Pulls from 'global' configuration
       final dynamic data = await _dbService.getFloorplanLayout('global');
       
       if (data != null && data is List && data.isNotEmpty && data[0] is Map) {
@@ -48,7 +48,9 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery, 
-      imageQuality: 50 // Helps stay under Firestore's 1MB document limit
+      imageQuality: 50, // Helps stay under Firestore's 1MB document limit
+      maxWidth: 800,    // Force resize width to max 800px
+      maxHeight: 800,   // Force resize height to max 800px
     );
 
     if (image == null) return;
@@ -61,7 +63,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Global Floor Plan saved to database!")),
+          const SnackBar(content: Text("Global Floor Plan saved! Applies to all events.")),
         );
         _loadExistingMap(); 
       }
@@ -69,7 +71,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
       debugPrint("Save Error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error: Image might be too large (>1MB)")),
+          SnackBar(content: Text("Upload Failed: $e")),
         );
       }
     } finally {
@@ -80,7 +82,7 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Edit Global Layout: ${widget.eventName}"), centerTitle: true),
+      appBar: AppBar(title: const Text("Edit Global Floor Plan"), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(

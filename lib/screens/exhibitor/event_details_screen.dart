@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class DbService {
+class DbServiceLegacy {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // ====================================================
   // 1. ORGANIZER: EVENTS & BOOTHS SETUP
@@ -16,12 +18,15 @@ class DbService {
     required DateTime endDate,
     required String floorPlanUrl,
   }) async {
+    String uid = _auth.currentUser!.uid;
+
     DocumentReference docRef = await _db.collection('events').add({
       'name': name,
       'location': location,
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
       'floorPlanUrl': floorPlanUrl,
+      'organizerId': uid, // Save current user as organizer
       'createdAt': FieldValue.serverTimestamp(),
     });
     return docRef.id;
@@ -29,6 +34,7 @@ class DbService {
 
   // (Optional) Generate text-based booths if not using the visual mapper
   Future<void> generateBooths(String eventId, int count) async {
+    String uid = _auth.currentUser!.uid;
     final batch = _db.batch();
     for (int i = 1; i <= count; i++) {
       DocumentReference boothRef = _db
@@ -41,6 +47,7 @@ class DbService {
         'boothNumber': 'B$i',
         'price': 100, 
         'status': 'available', 
+        'organizerId': uid, // Save organizer ID for filtering
         'exhibitorId': null,
       });
     }
@@ -134,14 +141,36 @@ class DbService {
     required String exhibitorId,
     required Map<String, dynamic> formData,
   }) async {
+    // Fetch the event to get the organizerId
+    DocumentSnapshot eventDoc = await _db.collection('events').doc(eventId).get();
+    String organizerId = '';
+    if (eventDoc.exists) {
+      organizerId = (eventDoc.data() as Map<String, dynamic>)['organizerId'] ?? '';
+    }
+
     await _db.collection('applications').add({
       'eventId': eventId,
       'boothId': boothId,
       'exhibitorId': exhibitorId,
+      'organizerId': organizerId, // Save for organizer filtering
       'status': 'pending', 
       'submittedAt': FieldValue.serverTimestamp(),
       'companyName': formData['companyName'] ?? '',
       'description': formData['description'] ?? '',
     });
+  }
+
+  // ====================================================
+  // 5. ORGANIZER DASHBOARD STREAMS
+  // ====================================================
+
+  Stream<QuerySnapshot> getOrganizerApplications() {
+    String uid = _auth.currentUser!.uid;
+    return _db.collection('applications').where('organizerId', isEqualTo: uid).snapshots();
+  }
+
+  Stream<QuerySnapshot> getOrganizerBoothsGroup() {
+    String uid = _auth.currentUser!.uid;
+    return _db.collectionGroup('booths').where('organizerId', isEqualTo: uid).snapshots();
   }
 }

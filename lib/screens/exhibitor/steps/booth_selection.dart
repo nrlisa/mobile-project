@@ -37,9 +37,9 @@ class _BoothSelectionState extends State<BoothSelection> {
         final booths = snapshot.data ?? [];
 
         // Filter booths by Hall/Size logic
-        final hallABooths = booths.where((b) => b.size == 'Small' || b.boothNumber.startsWith('S')).toList();
-        final hallBBooths = booths.where((b) => b.size == 'Medium' || b.boothNumber.startsWith('M')).toList();
-        final hallCBooths = booths.where((b) => b.size == 'Large' || b.boothNumber.startsWith('L')).toList();
+        final hallABooths = booths.where((b) => b.size == 'Small' || b.boothNumber.startsWith('S')).toList()..sort(_compareBoothNumbers);
+        final hallBBooths = booths.where((b) => b.size == 'Medium' || b.boothNumber.startsWith('M')).toList()..sort(_compareBoothNumbers);
+        final hallCBooths = booths.where((b) => b.size == 'Large' || b.boothNumber.startsWith('L')).toList()..sort(_compareBoothNumbers);
 
         return DefaultTabController(
           length: 3,
@@ -71,6 +71,16 @@ class _BoothSelectionState extends State<BoothSelection> {
         );
       },
     );
+  }
+
+  int _compareBoothNumbers(Booth a, Booth b) {
+    try {
+      final int aNum = int.parse(a.boothNumber.split('-').last);
+      final int bNum = int.parse(b.boothNumber.split('-').last);
+      return aNum.compareTo(bNum);
+    } catch (e) {
+      return a.boothNumber.compareTo(b.boothNumber);
+    }
   }
 
   Widget _buildBoothGrid(List<Booth> booths) {
@@ -115,29 +125,139 @@ class _BoothSelectionState extends State<BoothSelection> {
   }
 
   void _showBoothPopup(Booth booth) {
+    final isAvailable = booth.status.toLowerCase() == 'available';
+    String dimensions = (booth.size == "Small") ? "3m x 3m" : (booth.size == "Medium") ? "5m x 5m" : "8m x 8m";
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Booth ${booth.boothNumber}"),
-        content: Column(
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Size: ${booth.size}"),
-            Text("Price: RM ${booth.price}"),
-            Text("Status: ${booth.status}"),
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: const BoxDecoration(
+                color: Colors.blue,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.storefront, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    "Booth ${booth.boothNumber}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Price
+                  Text(
+                    "RM ${booth.price.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Details
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Category", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            Text("${booth.size} Booth", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Dimensions", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            Text(dimensions, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Status
+                  Row(
+                    children: [
+                      Icon(
+                        isAvailable ? Icons.check_circle : Icons.error,
+                        color: isAvailable ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isAvailable ? "Available" : "Unavailable",
+                        style: TextStyle(
+                          color: isAvailable ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Actions
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("CANCEL", style: TextStyle(color: Colors.grey)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: isAvailable
+                        ? () {
+                            setState(() => _selectedBooth = booth);
+                            Navigator.pop(context);
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[300],
+                      disabledForegroundColor: Colors.grey[500],
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text("SELECT BOOTH"),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => _selectedBooth = booth);
-              Navigator.pop(context);
-            },
-            child: const Text("SELECT"),
-          ),
-        ],
       ),
     );
   }

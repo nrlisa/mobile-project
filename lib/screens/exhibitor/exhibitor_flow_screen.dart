@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/db_service.dart';
 import '../../widgets/progress_stepper.dart'; 
 import 'steps/booth_selection.dart'; // Import your booth selection widget
 import 'steps/application_form.dart'; // Import for step 3
 import 'steps/review_application.dart'; // Import for step 4
+import 'steps/payment_step.dart'; // Import for step 5
 
 class ApplicationFlowScreen extends StatefulWidget {
   const ApplicationFlowScreen({super.key});
@@ -19,8 +21,11 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
   
   // State variables to hold user selections
   String? _selectedEventId;
+  String? _selectedEventName;
   String? _selectedBoothId;
   Map<String, dynamic>? _applicationData;
+  String? _createdApplicationId; // To store ID after review submission
+  double _finalAmount = 0.0; // To pass to payment
 
   int _currentStep = 0; 
 
@@ -64,6 +69,7 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
       case 1: return "Select Booth";
       case 2: return "Application Form";
       case 3: return "Review & Submit";
+      case 4: return "Payment";
       default: return "Application Flow";
     }
   }
@@ -78,12 +84,14 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
           onBoothSelected: (booth) {
             setState(() {
               _selectedBoothId = booth.id;
+              _finalAmount = booth.price;
               _currentStep = 2; // Move to Application Form (Step 3)
             });
           }, eventId: _selectedEventId ?? '',
         );
       case 2:
         return ApplicationForm(
+          initialData: _applicationData,
           onBack: () => setState(() => _currentStep = 1),
           onFormSubmitted: (data) {
             setState(() {
@@ -94,12 +102,26 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
         );
       case 3:
         return ReviewApplication(
+          eventId: _selectedEventId ?? '',
+          eventName: _selectedEventName ?? 'Event',
           boothId: _selectedBoothId ?? '',
           formData: _applicationData ?? {},
           onBack: () => setState(() => _currentStep = 2),
-          onSubmit: () {
-            // Final submission logic here
-            context.go('/exhibitor');
+          onSubmit: (appId, amount) {
+            setState(() {
+              _createdApplicationId = appId;
+              _finalAmount = amount;
+              _currentStep = 4; 
+            });
+          },
+        );
+      case 4:
+        return PaymentStep(
+          applicationId: _createdApplicationId ?? '',
+          amount: _finalAmount,
+          onPaymentSuccess: () {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Payment Successful! Application Submitted.")));
+            context.go('/exhibitor'); // Go back to dashboard
           },
         );
       default:
@@ -149,10 +171,25 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
                   var event = snapshot.data![index];
                   bool isSelected = _selectedEventId == event['id'];
 
+                  // Parse Dates manually since we are using Map
+                  String dateText = "Date TBD";
+                  if (event['startDate'] != null && event['endDate'] != null) {
+                    try {
+                      DateTime start = (event['startDate'] is Timestamp) 
+                          ? (event['startDate'] as Timestamp).toDate() 
+                          : DateTime.parse(event['startDate'].toString());
+                      DateTime end = (event['endDate'] is Timestamp) 
+                          ? (event['endDate'] as Timestamp).toDate() 
+                          : DateTime.parse(event['endDate'].toString());
+                      dateText = "${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}";
+                    } catch (_) {}
+                  }
+
                   return GestureDetector(
                     onTap: () {
                       setState(() {
                         _selectedEventId = event['id'];
+                        _selectedEventName = event['name'];
                       });
                     },
                     child: Container(
@@ -184,6 +221,17 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
                                 Text(
                                   event['location'] ?? 'Location',
                                   style: TextStyle(color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      dateText,
+                                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),

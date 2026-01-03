@@ -108,7 +108,11 @@ final GoRouter router = GoRouter(
         ),
         GoRoute(
           path: 'booths',
-          builder: (context, state) => const ManageBoothsScreen(eventId: ''),
+          builder: (context, state) {
+            final args = state.extra as Map<String, dynamic>?;
+            final eventId = args?['eventId'] as String? ?? '';
+            return ManageBoothsScreen(eventId: eventId);
+          },
         ),
         GoRoute(
           path: 'applications',

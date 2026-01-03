@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/event_model.dart';
 import '../models/booth.dart'; 
@@ -69,13 +70,13 @@ class DbService {
       Uint8List imageBytes = await imageFile.readAsBytes();
       String base64Image = base64Encode(imageBytes);
 
+      // Save to global configuration so it applies to ALL events
       await _firestore.collection('settings').doc('global_config').set({
         'sharedLayout': [
           {'imageUrl': 'data:image/png;base64,$base64Image'}
-        ], 
-        'lastUpdated': FieldValue.serverTimestamp(),
+        ],
       }, SetOptions(merge: true));
-      debugPrint("✅ Base64 Image saved to Firestore");
+      debugPrint("✅ Base64 Image saved to Global Config");
     } catch (e) {
       rethrow;
     }
@@ -101,7 +102,8 @@ class DbService {
     required String location, 
     required DateTime startDate, 
     required DateTime endDate, 
-    required String floorPlanUrl
+    required String floorPlanUrl,
+    required String organizerId,
   }) async {
     try {
       final docRef = _firestore.collection('events').doc();
@@ -114,6 +116,7 @@ class DbService {
         'startDate': startDate,
         'endDate': endDate,
         'floorPlanUrl': floorPlanUrl, 
+        'organizerId': organizerId,
         'createdAt': FieldValue.serverTimestamp(),
         'isPublished': false,
       });
@@ -128,6 +131,10 @@ class DbService {
   // Checks for existing booths of the same size to continue numbering correctly.
   Future<void> createBoothsBatch(String eventId, String size, double price, int count) async {
     try {
+      // 0. Fetch Event to get Organizer ID
+      final eventDoc = await _firestore.collection('events').doc(eventId).get();
+      final String? organizerId = eventDoc.data()?['organizerId'];
+
       final collectionRef = _firestore.collection('events').doc(eventId).collection('booths');
 
       // 1. DETERMINE STARTING NUMBER
@@ -154,6 +161,7 @@ class DbService {
           'size': size,
           'price': price, 
           'status': 'available',
+          'organizerId': organizerId, // Save for Dashboard filtering
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -195,6 +203,21 @@ class DbService {
     });
   }
 
+  // Added: Support querying by multiple IDs (e.g. UID and ORG-ID) to ensure all events are found
+  Stream<List<EventModel>> getOrganizerEventsMultiple(List<String> organizerIds) {
+    if (organizerIds.isEmpty) return const Stream.empty();
+    return _firestore.collection('events').where('organizerId', whereIn: organizerIds).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
+    });
+  }
+
+  // Added: Get ALL events (ignoring organizerId) for debugging or Admin use
+  Stream<List<EventModel>> getAllEventsStream() {
+    return _firestore.collection('events').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => EventModel.fromJson(doc.data())).toList();
+    });
+  }
+
   // Stream specifically for Booth Objects (Organizer & Exhibitor UI)
   Stream<List<Booth>> getBoothsStream(String eventId) {
     if (eventId.isEmpty) return const Stream.empty();
@@ -207,6 +230,40 @@ class DbService {
         .map((snapshot) => snapshot.docs
             .map((doc) => Booth.fromMap(doc.data(), doc.id))
             .toList());
+  }
+
+  // Fetch single booth details
+  Future<Booth> getBooth(String eventId, String boothId) async {
+    try {
+      final doc = await _firestore
+          .collection('events')
+          .doc(eventId)
+          .collection('booths')
+          .doc(boothId)
+          .get();
+      
+      if (doc.exists && doc.data() != null) {
+        return Booth.fromMap(doc.data()!, doc.id);
+      } else {
+        throw Exception("Booth not found");
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Fetch single event raw data
+  Future<Map<String, dynamic>> getEventData(String eventId) async {
+    try {
+      final doc = await _firestore.collection('events').doc(eventId).get();
+      if (doc.exists && doc.data() != null) {
+        return doc.data()!;
+      } else {
+        throw Exception("Event not found");
+      }
+    } catch (e) {
+      rethrow;
+    }
   }
 
   // Toggle Booth Status (Organizer Management)
@@ -225,21 +282,30 @@ class DbService {
 
   // --- 6. APPLICATION MANAGEMENT ---
 
-  Future<void> submitApplication({
+  Future<String> submitApplication({
     required String userId,
     required String eventName,
     required String eventId, // Added: needed to find the booth
     required String boothId,
+    required String boothNumber, // Added: Human readable booth number (e.g., S-1)
+    required String eventDate,   // Added: Event date range
     required Map<String, dynamic> applicationData,
     required double totalAmount,
   }) async {
     try {
+      // Fetch Event to get Organizer ID for the application
+      final eventDoc = await _firestore.collection('events').doc(eventId).get();
+      final String? organizerId = eventDoc.data()?['organizerId'];
+
       // 1. Create the Application Record
-      await _firestore.collection('applications').add({
+      DocumentReference docRef = await _firestore.collection('applications').add({
         'userId': userId,
         'eventName': eventName,
         'eventId': eventId,
         'boothId': boothId,
+        'boothNumber': boothNumber,
+        'organizerId': organizerId, // Save for Dashboard filtering
+        'eventDate': eventDate,
         'companyName': applicationData['details']?['companyName'] ?? 'N/A',
         'companyDescription': applicationData['details']?['description'] ?? 'N/A',
         'exhibitProfile': applicationData['details']?['exhibitProfile'] ?? 'N/A',
@@ -258,6 +324,7 @@ class DbService {
           .update({'status': 'booked'});
 
       debugPrint("✅ Application stored & Booth marked as Booked");
+      return docRef.id;
     } catch (e) {
       debugPrint("❌ Firestore Application Error: $e");
       rethrow;
@@ -269,6 +336,36 @@ class DbService {
         .collection('applications')
         .where('userId', isEqualTo: userId)
         .snapshots();
+  }
+
+  Stream<QuerySnapshot> getAllApplications() {
+    return _firestore.collection('applications').orderBy('submissionDate', descending: true).snapshots();
+  }
+
+  Stream<QuerySnapshot> getOrganizerApplications() {
+    String uid = FirebaseAuth.instance.currentUser!.uid;
+    return _firestore.collection('applications').where('organizerId', isEqualTo: uid).snapshots();
+  }
+
+  Stream<QuerySnapshot> getOrganizerBoothsGroup() {
+    String uid = FirebaseAuth.instance.currentUser!.uid;
+    return _firestore.collectionGroup('booths').where('organizerId', isEqualTo: uid).snapshots();
+  }
+
+  Stream<QuerySnapshot> getAllBoothsGroup() {
+    return _firestore.collectionGroup('booths').snapshots();
+  }
+
+  Future<void> markApplicationAsPaid(String docId) async {
+    try {
+      await _firestore.collection('applications').doc(docId).update({
+        'paymentStatus': 'Paid',
+        // 'status': 'Paid' // Removed: Status remains 'Pending' after payment
+      });
+      debugPrint("✅ Application $docId marked as Paid");
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> updateApplication(String docId, Map<String, dynamic> updatedData) async {
@@ -283,6 +380,19 @@ class DbService {
 
   Future<void> cancelApplication(String docId) async {
     try {
+      // 1. Get the application to find which booth to free up
+      final doc = await _firestore.collection('applications').doc(docId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final eventId = data['eventId'];
+        final boothId = data['boothId'];
+
+        // 2. Reset Booth Status to 'available'
+        if (eventId != null && boothId != null) {
+          await updateBoothStatus(eventId, boothId, 'available');
+        }
+      }
+
       await _firestore.collection('applications').doc(docId).delete();
       debugPrint("✅ Application $docId cancelled/deleted");
     } catch (e) {
@@ -291,5 +401,7 @@ class DbService {
     }
   }
 
-  Future<void> generateBooths(String eventId, int count) async {}
+  Future<void> generateBooths(String eventId, int count) async {
+    await createBoothsBatch(eventId, 'Standard', 100.0, count);
+  }
 }

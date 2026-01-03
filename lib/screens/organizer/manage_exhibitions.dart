@@ -20,7 +20,9 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
   int _currentStep = 0; 
 
   bool _isEditing = false;
+  bool _isUpdating = false; // To distinguish between Create and Update
   String _activeEventId = "";  
+  String _searchQuery = "";
 
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
@@ -35,6 +37,14 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 1));
 
+  String? _organizerId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrganizerId();
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -44,6 +54,16 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
     _priceController.dispose();
     _slotsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadOrganizerId() async {
+    String? id = await _authService.getCurrentSpecificId();
+    id ??= _authService.currentUser?.uid; // Fallback to Auth UID if specific ID is missing
+    if (mounted) {
+      setState(() {
+        _organizerId = id;
+      });
+    }
   }
 
   // Helper to select dates
@@ -81,6 +101,23 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
       _endDate = DateTime.now().add(const Duration(days: 1));
       _activeEventId = "";
       _isEditing = true;
+      _isUpdating = false;
+      _currentStep = 0;
+    });
+  }
+
+  // Pre-fill form for editing
+  void _startEdit(EventModel event) {
+    _nameController.text = event.name;
+    _locationController.text = event.location;
+    _descController.text = event.description;
+    // Note: Parsing date string back to DateTime is complex without raw data.
+    // We keep current _startDate/_endDate as default or user picks new ones.
+    
+    setState(() {
+      _activeEventId = event.id;
+      _isEditing = true;
+      _isUpdating = true;
       _currentStep = 0;
     });
   }
@@ -88,9 +125,10 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F7FF), // Light lavender/white
       appBar: AppBar(
         title: Text(_isEditing 
-            ? (_currentStep == 1 ? "Add Booths" : "Add Exhibition") 
+            ? (_currentStep == 1 ? "Manage Booths" : (_isUpdating ? "Edit Exhibition" : "New Exhibition")) 
             : "Manage Exhibitions"),
         centerTitle: true,
         leading: _isEditing && _currentStep == 1 
@@ -145,131 +183,190 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
         
         // Robust ID Fetching: Check 'organizerId' first, fallback to UID
-        final String orgId = userData != null && userData.containsKey('organizerId') 
-            ? userData['organizerId'] 
+        final String orgId = (userData != null && userData['organizerId'] != null)
+            ? userData['organizerId'] as String
             : currentUserId;
 
-        return StreamBuilder<List<EventModel>>(
-          stream: _dbService.getOrganizerEvents(orgId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            
-            final events = snapshot.data ?? [];
-            
-            if (events.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.event_note, size: 60, color: Colors.grey),
-                      const SizedBox(height: 10),
-                      const Text(
-                        "No exhibitions found.",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 5),
-                      Text("ID: $orgId", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                    ],
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: "Search exhibitions...",
+                  prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
-              );
-            }
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<EventModel>>(
+                stream: _dbService.getOrganizerEvents(orgId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  
+                  var events = snapshot.data ?? [];
+                  
+                  if (_searchQuery.isNotEmpty) {
+                    events = events.where((event) => 
+                      event.name.toLowerCase().contains(_searchQuery) || 
+                      event.location.toLowerCase().contains(_searchQuery)
+                    ).toList();
+                  }
+                  
+                  if (events.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.event_note, size: 60, color: Colors.grey),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "No exhibitions found.",
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
+                            ),
+                            const SizedBox(height: 5),
+                            Text("ID: $orgId", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
 
-            return ListView.builder(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
-              itemCount: events.length,
-              itemBuilder: (context, index) {
-                final event = events[index];
-                return Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                event.name, 
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Switch(
-                              value: event.isPublished,
-                              activeThumbColor: Colors.green,
-                              activeTrackColor: Colors.green.shade200,
-                              onChanged: (val) async {
-                                setState(() => event.isPublished = val);
-                                await _dbService.addEvent(event); 
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-                            const SizedBox(width: 5),
-                            Text(event.date, style: const TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                            const SizedBox(width: 5),
-                            Text(event.location, style: const TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                        const Divider(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton.icon(
-                              icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                              label: const Text("Delete", style: TextStyle(color: Colors.red)),
-                              onPressed: () async {
-                                await _dbService.deleteEvent(event.id);
-                                if (!mounted) return;
-                                // ignore: use_build_context_synchronously
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exhibition Deleted")));
-                              },
-                            ),
-                            const SizedBox(width: 10),
-                            ElevatedButton(
-                              onPressed: () {
-                                // EDIT LOGIC: Load event and jump to booths
-                                setState(() {
-                                  _activeEventId = event.id;
-                                  _isEditing = true;
-                                  _currentStep = 1; 
-                                });
-                                Future.delayed(const Duration(milliseconds: 100), () {
-                                   if (_pageController.hasClients) _pageController.jumpToPage(1);
-                                });
-                              },
-                              child: const Text("Manage Booths"),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+                  return ListView.separated(
+                    padding: const EdgeInsets.only(left: 20, right: 20, bottom: 80),
+                    itemCount: events.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final event = events[index];
+                      return _buildEventCard(event);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildEventCard(EventModel event) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    event.name, 
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF222222)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: event.isPublished,
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: Colors.green,
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: Colors.grey.shade300,
+                    onChanged: (val) async {
+                      setState(() => event.isPublished = val);
+                      await _dbService.addEvent(event); 
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 14, color: Color(0xFF777777)),
+                const SizedBox(width: 8),
+                Text(event.date, style: const TextStyle(color: Color(0xFF777777), fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Color(0xFF777777)),
+                const SizedBox(width: 8),
+                Text(event.location, style: const TextStyle(color: Color(0xFF777777), fontSize: 12)),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _activeEventId = event.id;
+                      _isEditing = true;
+                      _currentStep = 1; 
+                    });
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                       if (_pageController.hasClients) _pageController.jumpToPage(1);
+                    });
+                  },
+                  icon: const Icon(Icons.grid_view, size: 18, color: Colors.blue),
+                  label: const Text("Booths", style: TextStyle(color: Colors.blue)),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      onPressed: () => _startEdit(event),
+                      tooltip: "Edit Details",
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        await _dbService.deleteEvent(event.id);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exhibition Deleted")));
+                      },
+                      tooltip: "Delete",
+                    ),
+                  ],
+                )
+              ],
+            )
+          ],
+        ),
+      ),
     );
   }
 
@@ -317,31 +414,35 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () async {
-              final String generatedId = const Uuid().v4(); 
-              final userDoc = await FirebaseFirestore.instance.collection('users').doc(_authService.currentUser?.uid).get();
-              
-              // Consistent ID usage
-              final String orgId = userDoc.data() != null && userDoc.data()!.containsKey('organizerId')
-                  ? userDoc.data()!['organizerId'] 
-                  : _authService.currentUser?.uid ?? "temp_organizer";
-
               String dateStr = "${_startDate.day}/${_startDate.month}/${_startDate.year} - ${_endDate.day}/${_endDate.month}/${_endDate.year}";
+              
+              // If updating, use active ID. If new, generate ID.
+              final String eventId = _isUpdating ? _activeEventId : const Uuid().v4();
 
               final newEvent = EventModel(
-                id: generatedId,
+                id: eventId,
                 name: _nameController.text,
                 date: dateStr,
                 location: _locationController.text,
                 description: _descController.text,
-                isPublished: false,
-                organizerId: orgId, 
+                isPublished: false, // Default to draft on create/update unless explicitly changed elsewhere
+                organizerId: _organizerId ?? "unknown", 
               );
 
-              await _dbService.addEvent(newEvent);
+              if (_isUpdating) {
+                // For update, we might want to preserve isPublished status if we fetched it, 
+                // but here we are simplifying. Ideally, we fetch current status or pass it.
+                // For now, simple update.
+                await _dbService.addEvent(newEvent); // addEvent uses set() which overwrites.
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Event Updated")));
+              } else {
+                await _dbService.addEvent(newEvent);
+              }
               
               if (!mounted) return;
               _pageController.animateToPage(1, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-              setState(() { _activeEventId = generatedId; _currentStep = 1; });
+              setState(() { _activeEventId = eventId; _currentStep = 1; });
             },
             child: const Text("Next"),
           ),

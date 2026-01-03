@@ -62,41 +62,50 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Login")),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lock_person, size: 80, color: Colors.blue),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 24),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _handleLogin,
-                      child: const Text("Login", style: TextStyle(fontSize: 18)),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.lock_person, size: 80, color: Colors.blue),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
                     ),
-                  ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => context.push('/register'),
-              child: const Text("Don't have an account? Register here"),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 24),
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _handleLogin,
+                              child: const Text("Login", style: TextStyle(fontSize: 18)),
+                            ),
+                          ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => context.push('/register'),
+                      child: const Text("Don't have an account? Register here"),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

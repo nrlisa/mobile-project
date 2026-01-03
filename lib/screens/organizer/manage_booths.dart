@@ -1,163 +1,172 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
-import '../../models/booth.dart'; // Ensure this import points to your Booth model
+import '../../models/event_model.dart';
+import '../../models/booth.dart';
 
-class ManageBoothsScreen extends StatelessWidget {
-  final String eventId;
-  const ManageBoothsScreen({super.key, required this.eventId});
+class ManageBoothsScreen extends StatefulWidget {
+  final String eventId; // Optional, if filtering by specific event
+
+  const ManageBoothsScreen({super.key, this.eventId = ''});
+
+  @override
+  State<ManageBoothsScreen> createState() => _ManageBoothsScreenState();
+}
+
+class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
+  final AuthService _authService = AuthService();
+  final DbService _dbService = DbService();
+  List<String> _organizerIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrganizerId();
+  }
+
+  Future<void> _loadOrganizerId() async {
+    String? specificId = await _authService.getCurrentSpecificId();
+    String? uid = _authService.currentUser?.uid;
+    
+    Set<String> ids = {};
+    if (specificId != null) ids.add(specificId);
+    if (uid != null) ids.add(uid);
+
+    debugPrint("DEBUG: Querying events for IDs: $ids");
+    if (mounted) {
+      setState(() {
+        _organizerIds = ids.toList();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final DbService dbService = DbService();
-
     return Scaffold(
-      appBar: AppBar(title: const Text("Manage Booth Layout")),
-      body: Column(
-        children: [
-          // 1. Legend to explain colors
-          _buildLegend(),
-          
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text(
-              "Tap a booth to toggle Available/Reserved.\n(Booked booths cannot be changed here)",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ),
-
-          // 2. Real-time Grid
-          Expanded(
-            child: StreamBuilder<List<Booth>>(
-              // Use the new stream method from DbService
-              stream: dbService.getBoothsStream(eventId),
+      appBar: AppBar(
+        title: const Text("Booth Inventory Summary"),
+        centerTitle: true,
+        actions: [
+          // Display ID to verify against Database
+          Center(child: Text(_organizerIds.isNotEmpty ? _organizerIds.first : "...", style: const TextStyle(color: Colors.black, fontSize: 10))),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: _organizerIds.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<List<EventModel>>(
+              stream: _dbService.getOrganizerEventsMultiple(_organizerIds),
               builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 if (snapshot.hasError) {
                   return Center(child: Text("Error: ${snapshot.error}"));
                 }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                
+                final allEvents = snapshot.data ?? [];
+                if (allEvents.isEmpty) {
+                  return const Center(child: Text("No events found."));
                 }
 
-                final booths = snapshot.data!;
-                if (booths.isEmpty) {
-                  return const Center(child: Text("No booths generated yet."));
+                // Filter if eventId is passed
+                final events = widget.eventId.isNotEmpty
+                    ? allEvents.where((e) => e.id == widget.eventId).toList()
+                    : allEvents;
+
+                if (events.isEmpty) {
+                   return const Center(child: Text("Event not found."));
                 }
 
-                return GridView.builder(
+                return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4, // Adjust columns as needed
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 1.0, // Square tiles
-                  ),
-                  itemCount: booths.length,
+                  itemCount: events.length,
                   itemBuilder: (context, index) {
-                    final booth = booths[index];
-                    return _buildOrganizerBoothTile(context, dbService, booth);
+                    final event = events[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ExpansionTile(
+                        title: Text(event.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(event.location),
+                        children: [_buildBoothSummaryTable(event.id)],
+                      ),
+                    );
                   },
                 );
               },
             ),
-          ),
-        ],
-      ),
     );
   }
 
-  // Helper widget to build each booth tile
-  Widget _buildOrganizerBoothTile(BuildContext context, DbService db, Booth booth) {
-    Color color;
-    Color textColor = Colors.black87;
-booth.status.toLowerCase();
-    // Set colors based on status
-    if (booth.status == 'available') {
-      color = Colors.green.shade100;
-    } else if (booth.status == 'booked') {
-      color = Colors.red.shade100;
-      textColor = Colors.red.shade900;
-    } else {
-      // Reserved or Maintenance
-      color = Colors.grey.shade300;
-      textColor = Colors.grey.shade700;
-    }
-
-    return GestureDetector(
-      onTap: () {
-        // Interaction Logic:
-        // 1. If Booked, show warning (cannot manually un-book paid spots here)
-        // 2. If Available, toggle to Reserved
-        // 3. If Reserved, toggle to Available
-        if (booth.status == 'booked') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Cannot edit a booked booth directly."))
-          );
-          return;
+  Widget _buildBoothSummaryTable(String eventId) {
+    return StreamBuilder<List<Booth>>(
+      stream: _dbService.getBoothsStream(eventId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+           return const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator());
         }
 
-        String newStatus = (booth.status == 'available') ? 'reserved' : 'available';
-        db.updateBoothStatus(eventId, booth.id, newStatus);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(color: Colors.black12),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              booth.boothNumber, 
-              style: TextStyle(fontWeight: FontWeight.bold, color: textColor)
-            ),
-            const SizedBox(height: 4),
-            Text(
-              booth.size, 
-              style: TextStyle(fontSize: 10, color: textColor)
-            ),
-            Text(
-              booth.status.toUpperCase(), 
-              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: textColor)
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+        final booths = snapshot.data ?? [];
+        debugPrint("DEBUG: Event $eventId has ${booths.length} booths");
+        if (booths.isEmpty) {
+          return const Padding(padding: EdgeInsets.all(16), child: Text("No booths generated yet."));
+        }
+        
+        // AGGREGATE DATA: Group by Size
+        final Map<String, Map<String, dynamic>> summary = {};
 
-  // Legend widget at the top
-  Widget _buildLegend() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _legendItem(Colors.green.shade100, "Available"),
-          _legendItem(Colors.red.shade100, "Booked"),
-          _legendItem(Colors.grey.shade300, "Reserved"),
-        ],
-      ),
-    );
-  }
+        for (var booth in booths) {
+          if (!summary.containsKey(booth.size)) {
+            summary[booth.size] = {
+              'count': 0,
+              'available': 0,
+              'booked': 0,
+              'price': booth.price,
+              'booth_list': <String>[],
+            };
+          }
+          summary[booth.size]!['count'] += 1;
+          if (booth.status == 'available') {
+            summary[booth.size]!['available'] += 1;
+            (summary[booth.size]!['booth_list'] as List<String>).add(booth.boothNumber);
+          }
+          if (booth.status == 'booked') summary[booth.size]!['booked'] += 1;
+        }
 
-  Widget _legendItem(Color color, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            border: Border.all(color: Colors.black12),
-            borderRadius: BorderRadius.circular(4),
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade300),
+            columnWidths: const {
+              0: FlexColumnWidth(1.5),
+              1: FlexColumnWidth(1.5),
+              2: FlexColumnWidth(1),
+              3: FlexColumnWidth(1),
+            },
+            children: [
+              // Header
+              const TableRow(decoration: BoxDecoration(color: Color(0xFFEEEEEE)), children: [
+                Padding(padding: EdgeInsets.all(8), child: Text("Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                Padding(padding: EdgeInsets.all(8), child: Text("Price", style: TextStyle(fontWeight: FontWeight.bold))),
+                Padding(padding: EdgeInsets.all(8), child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold))),
+                Padding(padding: EdgeInsets.all(8), child: Text("Available Booths", style: TextStyle(fontWeight: FontWeight.bold))),
+              ]),
+              // Data Rows
+              ...summary.entries.map((entry) {
+                final size = entry.key;
+                final data = entry.value;
+
+                return TableRow(children: [
+                  Padding(padding: const EdgeInsets.all(8), child: Text(size)),
+                  Padding(padding: const EdgeInsets.all(8), child: Text("RM ${data['price']}")),
+                  Padding(padding: const EdgeInsets.all(8), child: Text("${data['count']}")),
+                  Padding(padding: const EdgeInsets.all(8), child: Text("${data['available']}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                ]);
+              }),
+            ],
           ),
-        ),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
+        );
+      },
     );
   }
 }

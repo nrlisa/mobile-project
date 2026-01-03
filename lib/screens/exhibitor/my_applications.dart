@@ -1,199 +1,190 @@
-// ignore_for_file: unused_import
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/db_service.dart';
 
-class MyApplications extends StatelessWidget {
+class MyApplications extends StatefulWidget {
   final Function(Map<String, dynamic>) onView;
-  final DbService _dbService = DbService(); 
 
-  MyApplications({
-    super.key,
-    required this.onView,
-  });
+  const MyApplications({super.key, required this.onView});
+
+  @override
+  State<MyApplications> createState() => _MyApplicationsState();
+}
+
+class _MyApplicationsState extends State<MyApplications> {
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text("Please login"));
+
+    final DbService dbService = DbService();
 
     return Scaffold(
-      // Use a consistent background color as seen in previous steps
-      backgroundColor: const Color(0xFFF8F4FF),
-      appBar: AppBar(
-        title: const Text("My Applications", style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          // Ensuring safe navigation back to the dashboard
-          onPressed: () => context.pop(), 
-        ),
-      ),
-      body: user == null
-          ? const Center(child: Text("Authentication required."))
-          : StreamBuilder<QuerySnapshot>(
-              // Listen to the user's specific applications collection
-              stream: _dbService.getExhibitorApplications(user.uid),
+      appBar: AppBar(title: const Text("My Applications")),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Search applications...",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.toLowerCase();
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: dbService.getExhibitorApplications(user.uid),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  // This helps catch the Firestore Index error we saw earlier
-                  return Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Center(
-                      child: Text(
-                        "Error: ${snapshot.error}", 
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      )
-                    ),
-                  );
-                }
-
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text("No applications found.", style: TextStyle(color: Colors.grey)),
-                  );
+                  return const Center(child: Text("No applications submitted yet."));
                 }
 
-                final docs = snapshot.data!.docs;
+                final docs = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final eventName = (data['eventName'] ?? '').toString().toLowerCase();
+                  final boothNumber = (data['boothNumber'] ?? '').toString().toLowerCase();
+                  final status = (data['status'] ?? '').toString().toLowerCase();
+                  return eventName.contains(_searchQuery) ||
+                      boothNumber.contains(_searchQuery) ||
+                      status.contains(_searchQuery);
+                }).toList();
+
+                if (docs.isEmpty) {
+                  return const Center(child: Text("No matching applications found."));
+                }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final doc = docs[index];
-                    final appData = doc.data() as Map<String, dynamic>;
-                    final String docId = doc.id; 
-                    
-                    return _buildApplicationCard(context, appData, docId);
+                    final data = doc.data() as Map<String, dynamic>;
+                    String status = data['status'] ?? 'Pending';
+                    if (status == 'Paid') status = 'Pending';
+                    final docId = doc.id;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    data['eventName'] ?? 'Unknown Event',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ),
+                                _buildStatusChip(status),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(data['eventDate'] ?? 'Date TBD', style: const TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.storefront, size: 14, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text("Booth: ${data['boothNumber'] ?? 'N/A'}", style: const TextStyle(fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Total: RM ${data['totalAmount']?.toStringAsFixed(2) ?? '0.00'}",
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                            ),
+                            if (status == 'Pending') ...[
+                              const Divider(height: 20),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () => _cancelApplication(context, dbService, docId),
+                                  icon: const Icon(Icons.cancel, color: Colors.red, size: 18),
+                                  label: const Text("Cancel Request", style: TextStyle(color: Colors.red)),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 );
               },
             ),
-    );
-  }
-
-  Widget _buildApplicationCard(BuildContext context, Map<String, dynamic> app, String docId) {
-    // Business logic: Applications must stay 'Pending' until organizer approval
-    String status = app['status'] ?? 'Pending';
-
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        title: Text(
-          app['companyName'] ?? 'Unknown Company', 
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Text("Booth No: ${app['boothId']}", style: const TextStyle(color: Colors.black87)),
-            Text(
-              "Total Amount: RM ${app['totalAmount']?.toStringAsFixed(2) ?? '0.00'}", 
-              style: const TextStyle(color: Colors.black54),
-            ),
-          ],
-        ),
-        // Trailing section for status and cancellation actions
-        trailing: Wrap(
-          spacing: 0, 
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _buildStatusBadge(status),
-            PopupMenuButton<String>(
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.more_vert, color: Colors.grey),
-              onSelected: (value) {
-                if (value == 'cancel') {
-                  _confirmCancel(context, docId);
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'cancel',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                      SizedBox(width: 8),
-                      Text("Cancel Request", style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        onTap: () => onView(app),
-      ),
-    );
-  }
-
-  void _confirmCancel(BuildContext context, String docId) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Cancel Application?"),
-        content: const Text("This will permanently remove your booking. This action cannot be undone."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext), 
-            child: const Text("CLOSE"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              // Delete the document from Firestore via the service
-              await _dbService.cancelApplication(docId); 
-              
-              if (context.mounted) {
-                Navigator.pop(dialogContext); // Close dialog
-                
-                // Show confirmation snackbar
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Application successfully cancelled"),
-                    backgroundColor: Colors.black87,
-                  ),
-                );
-              }
-            },
-            child: const Text("CONFIRM CANCEL"),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    // Standardizing 'Pending' status badge with orange theme
+  void _cancelApplication(BuildContext context, DbService dbService, String docId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Cancel Application"),
+        content: const Text("Are you sure you want to cancel this application? The booth will be released."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("No"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await dbService.cancelApplication(docId);
+            },
+            child: const Text("Yes, Cancel", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    Color color;
+    switch (status.toLowerCase()) {
+      case 'approved': color = Colors.green; break;
+      case 'rejected': color = Colors.red; break;
+      case 'paid': color = Colors.blue; break;
+      default: color = Colors.orange;
+    }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.orange[100],
-        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
       ),
       child: Text(
-        status,
-        style: TextStyle(
-          color: Colors.orange[800],
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
+        status.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }

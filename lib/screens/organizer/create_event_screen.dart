@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 // REMOVED: import 'package:intl/intl.dart'; 
 import '../../services/db_service.dart'; 
 import '../../utils/app_theme.dart';
+import '../../services/auth_service.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key});
@@ -27,6 +28,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   // Service
   final DbService _dbService = DbService();
+  final AuthService _authService = AuthService();
 
   @override
   void dispose() {
@@ -70,6 +72,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String? organizerId = await _authService.getCurrentSpecificId();
+      organizerId ??= _authService.currentUser?.uid;
+      if (organizerId == null) throw Exception("User not logged in");
+
       // 1. Create Event (Returns String ID from Firebase)
       String eventId = await _dbService.createEvent(
         name: _nameController.text,
@@ -77,6 +83,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         startDate: _startDate!,
         endDate: _endDate!,
         floorPlanUrl: _imageUrlController.text.trim(),
+        organizerId: organizerId,
       );
 
       // 2. Generate Booths
