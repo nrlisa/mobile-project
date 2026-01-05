@@ -124,12 +124,15 @@ class _AdminFloorPlanWidgetState extends State<AdminFloorPlanWidget> {
     final sizeController = TextEditingController(text: booth.size);
     final priceController = TextEditingController(text: booth.price.toString());
     final categoryController = TextEditingController(text: booth.companyCategory ?? '');
+    String selectedStatus = booth.status;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
         title: Text("Edit Booth ${booth.boothNumber}"),
-        content: Column(
+        content: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
@@ -145,11 +148,20 @@ class _AdminFloorPlanWidgetState extends State<AdminFloorPlanWidget> {
               decoration: const InputDecoration(labelText: "Price (RM)"),
               keyboardType: TextInputType.number,
             ),
+            DropdownButtonFormField<String>(
+              initialValue: selectedStatus,
+              decoration: const InputDecoration(labelText: "Status"),
+              items: ['available', 'booked', 'reserved', 'maintenance']
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .toList(),
+              onChanged: (val) => setState(() => selectedStatus = val!),
+            ),
             TextField(
               controller: categoryController,
               decoration: const InputDecoration(labelText: "Company Category"),
             ),
           ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
@@ -159,6 +171,7 @@ class _AdminFloorPlanWidgetState extends State<AdminFloorPlanWidget> {
                 'boothNumber': idController.text,
                 'size': sizeController.text,
                 'price': double.tryParse(priceController.text) ?? booth.price,
+                'status': selectedStatus,
                 'companyCategory': categoryController.text.isEmpty ? null : categoryController.text,
               });
               Navigator.pop(context);
@@ -166,6 +179,7 @@ class _AdminFloorPlanWidgetState extends State<AdminFloorPlanWidget> {
             child: const Text("Save"),
           ),
         ],
+      ),
       ),
     );
   }

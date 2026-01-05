@@ -48,11 +48,13 @@ class DbService {
     required String role, 
     required String companyName, 
     required String companyDescription,
+    String? name,
   }) async {
     try {
       await _firestore.collection('users').doc(user.uid).set({
         'uid': user.uid,
         'email': user.email,
+        'name': name ?? user.displayName ?? '',
         'role': role, 
         'companyName': companyName,
         'companyDescription': companyDescription,

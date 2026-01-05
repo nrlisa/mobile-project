@@ -82,7 +82,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
                         children: [
                           if (status == 'Pending') ...[
                             TextButton(
-                              onPressed: () => dbService.reviewApplication(docId, 'Rejected'),
+                              onPressed: () => _showActionDialog(context, docId, 'Rejected', dbService),
                               child: const Text("Reject", style: TextStyle(color: Colors.red)),
                             ),
                             const SizedBox(width: 8),
@@ -95,8 +95,20 @@ class OrganizerApplicationsScreen extends StatelessWidget {
                               ),
                               child: const Text("Approve"),
                             ),
+                          ] else if (status == 'Approved') ...[
+                            TextButton(
+                              onPressed: () => _showActionDialog(context, docId, 'Cancelled', dbService),
+                              child: const Text("Cancel Booking", style: TextStyle(color: Colors.red)),
+                            ),
                           ] else ...[
-                            Text("Status: $displayStatus", style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text("Status: $displayStatus", style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                                if (data['rejectionReason'] != null)
+                                  Text("Reason: ${data['rejectionReason']}", style: const TextStyle(color: Colors.red, fontSize: 12)),
+                              ],
+                            ),
                           ]
                         ],
                       )
@@ -111,6 +123,70 @@ class OrganizerApplicationsScreen extends StatelessWidget {
     );
   }
 
+  void _showActionDialog(BuildContext context, String appId, String action, DbService dbService) {
+    final List<String> reasons = action == 'Rejected'
+        ? ['Incomplete Application', 'Booth Unavailable', 'Competitor Conflict', 'Payment Issue', 'Other']
+        : ['Organizer Decision', 'Event Cancelled', 'Policy Violation', 'Other'];
+
+    String? selectedReason;
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text("$action Application"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: "Reason (Required)"),
+                  initialValue: selectedReason,
+                  items: reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                  onChanged: (val) {
+                    setState(() => selectedReason = val);
+                  },
+                ),
+                if (selectedReason == 'Other') ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(labelText: "Please specify reason"),
+                    maxLines: 2,
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Back")),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                onPressed: () {
+                  String? finalReason;
+                  if (selectedReason == 'Other') {
+                    finalReason = reasonController.text.trim();
+                  } else {
+                    finalReason = selectedReason;
+                  }
+
+                  if (finalReason == null || finalReason.isEmpty) {
+                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please provide a reason.")));
+                     return;
+                  }
+                  dbService.reviewApplication(appId, action, reason: finalReason);
+                  Navigator.pop(context);
+                },
+                child: Text("Confirm $action"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStatusChip(String status) {
     Color color;
     if (status == 'Paid') status = 'Pending';
@@ -118,6 +194,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
       case 'approved': color = Colors.green; break;
       case 'rejected': color = Colors.red; break;
       case 'pending review': color = Colors.orange; break;
+      case 'cancelled': color = Colors.grey; break;
       default: color = Colors.grey;
     }
     return Container(

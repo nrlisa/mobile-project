@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/db_service.dart';
 import '../../models/booth.dart';
 import 'steps/booth_selection.dart';
 import 'steps/application_form.dart';
+import 'steps/review_application.dart';
+import 'steps/payment_step.dart';
+import '../../widgets/progress_stepper.dart';
 
 class ApplicationFlowScreen extends StatefulWidget {
   final String? eventId;
@@ -21,6 +23,9 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
   String _eventName = "Loading...";
   Booth? _selectedBooth;
   final DbService _dbService = DbService();
+  Map<String, dynamic> _formData = {};
+  String? _applicationId;
+  double _totalAmount = 0.0;
 
   @override
   void initState() {
@@ -51,38 +56,25 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
     });
   }
 
-  void _onFormSubmitted(Map<String, dynamic> formData) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && _selectedBooth != null) {
-      try {
-        // Calculate total amount including addons
-        double total = _selectedBooth!.price;
-        final addons = formData['addons'] as List<dynamic>? ?? [];
-        for (var addon in addons) {
-          total += (addon['price'] as num).toDouble();
-        }
+  void _onFormCompleted(Map<String, dynamic> formData) {
+    setState(() {
+      _formData = formData;
+      _currentStep = 2; // Move to Review
+    });
+  }
+  void _onReviewSubmitted(String appId, double totalAmount) {
+    setState(() {
+      _applicationId = appId;
+      _totalAmount = totalAmount;
+      _currentStep = 3; // Move to Payment
+    });
+  }
 
-        await _dbService.submitApplication(
-          userId: user.uid,
-          eventName: _eventName,
-          eventId: _eventId,
-          boothId: _selectedBooth!.id,
-          boothNumber: _selectedBooth!.boothNumber,
-          eventDate: "Upcoming", 
-          applicationData: formData,
-          totalAmount: total,
-        );
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Application Submitted Successfully!")));
-          context.go('/exhibitor/my-applications');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-        }
-      }
-    }
+  void _onPaymentSuccess() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Payment Successful! Application Submitted.")),
+    );
+    context.go('/exhibitor/my-applications');
   }
 
   @override
@@ -94,18 +86,58 @@ class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
       );
     }
 
+    String title;
+    switch (_currentStep) {
+      case 0: title = "Step 1: Select Booth"; break;
+      case 1: title = "Step 2: Application Form"; break;
+      case 2: title = "Step 3: Review Application"; break;
+      case 3: title = "Step 4: Payment"; break;
+      default: title = "Application";
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text(_currentStep == 0 ? "Step 1: Select Booth" : "Step 2: Application Form")),
-      body: _currentStep == 0
-          ? BoothSelection(
-              eventId: _eventId,
-              onBoothSelected: _onBoothSelected,
-              onBack: () => context.pop(),
-            )
-          : ApplicationForm(
-              onBack: () => setState(() => _currentStep = 0),
-              onFormSubmitted: _onFormSubmitted,
-            ),
+      appBar: AppBar(title: Text(title)),
+      body: Column(
+        children: [
+          const SizedBox(height: 16),
+          ProgressStepper(currentStep: _currentStep),
+          const SizedBox(height: 16),
+          Expanded(child: _buildStep()),
+        ],
+      ),
     );
+  }
+
+  Widget _buildStep() {
+    switch (_currentStep) {
+      case 0:
+        return BoothSelection(
+          eventId: _eventId,
+          onBoothSelected: _onBoothSelected,
+          onBack: () => context.pop(),
+        );
+      case 1:
+        return ApplicationForm(
+          onBack: () => setState(() => _currentStep = 0),
+          onFormSubmitted: _onFormCompleted,
+        );
+      case 2:
+        return ReviewApplication(
+          eventId: _eventId,
+          eventName: _eventName,
+          boothId: _selectedBooth!.id,
+          formData: _formData,
+          onBack: () => setState(() => _currentStep = 1),
+          onSubmit: _onReviewSubmitted,
+        );
+      case 3:
+        return PaymentStep(
+          applicationId: _applicationId!,
+          amount: _totalAmount,
+          onPaymentSuccess: _onPaymentSuccess,
+        );
+      default:
+        return const Center(child: Text("Unknown Step"));
+    }
   }
 }

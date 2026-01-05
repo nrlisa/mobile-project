@@ -55,6 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await _dbService.createUserProfile(
           userCredential.user!,
           role: _selectedRole,
+          name: _nameController.text.trim(),
           companyName: _selectedRole == 'exhibitor' ? _companyNameController.text.trim() : '',
           companyDescription: _selectedRole == 'exhibitor' ? _companyDescController.text.trim() : '',
         );

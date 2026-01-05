@@ -70,11 +70,18 @@ class MyApplications extends StatelessWidget {
                                 padding: EdgeInsets.zero,
                                 visualDensity: VisualDensity.compact,
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                tooltip: "Cancel Application",
-                                onPressed: () => _confirmDelete(context, docId, dbService),
-                              ),
+                              if (status == 'Pending')
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  tooltip: "Edit Application",
+                                  onPressed: () => _showEditDialog(context, docId, data, dbService),
+                                ),
+                              if (status == 'Pending' || status == 'Approved')
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  tooltip: "Cancel Booking",
+                                  onPressed: () => _confirmDelete(context, docId, dbService),
+                                ),
                             ],
                           )
                         ],
@@ -118,6 +125,50 @@ class MyApplications extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, String docId, Map<String, dynamic> data, DbService dbService) {
+    final descriptionController = TextEditingController(text: data['companyDescription'] ?? '');
+    final profileController = TextEditingController(text: data['exhibitProfile'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit Application"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: "Company Description"),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: profileController,
+                decoration: const InputDecoration(labelText: "Exhibit Profile"),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              dbService.updateApplication(docId, {
+                'companyDescription': descriptionController.text,
+                'exhibitProfile': profileController.text,
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Application updated.")));
+            },
+            child: const Text("Save"),
+          ),
+        ],
       ),
     );
   }
