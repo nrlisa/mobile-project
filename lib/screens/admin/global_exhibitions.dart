@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/db_service.dart';
 import 'admin_floorplan.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class GlobalExhibitionsScreen extends StatefulWidget {
   const GlobalExhibitionsScreen({super.key});
@@ -21,6 +22,10 @@ class _GlobalExhibitionsScreenState extends State<GlobalExhibitionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Global Exhibitions")),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showCreateEventDialog(context),
+        child: const Icon(Icons.add),
+      ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _dbService.getEvents(), 
         builder: (context, snapshot) {
@@ -89,6 +94,61 @@ class _GlobalExhibitionsScreenState extends State<GlobalExhibitionsScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  // Dialog to Create New Event
+  void _showCreateEventDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final locationController = TextEditingController();
+    DateTimeRange? selectedDateRange;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Create New Exhibition"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Event Name")),
+            TextField(controller: locationController, decoration: const InputDecoration(labelText: "Location")),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () async {
+                final picked = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) {
+                  selectedDateRange = picked;
+                }
+              },
+              child: const Text("Select Dates"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isNotEmpty && selectedDateRange != null) {
+                await _dbService.createEvent(
+                  name: nameController.text,
+                  location: locationController.text,
+                  startDate: selectedDateRange!.start,
+                  endDate: selectedDateRange!.end,
+                  floorPlanUrl: '',
+                  organizerId: FirebaseAuth.instance.currentUser?.uid ?? 'admin',
+                );
+                if (context.mounted) Navigator.pop(context);
+                _refresh();
+              }
+            },
+            child: const Text("Create"),
+          ),
+        ],
       ),
     );
   }

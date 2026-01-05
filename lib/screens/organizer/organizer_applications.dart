@@ -12,7 +12,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text("Review Applications")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: dbService.getAllApplications(),
+        stream: dbService.getOrganizerApplications(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -34,6 +34,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
               final docId = docs[index].id;
               String status = data['status'] ?? 'Pending';
               if (status == 'Paid') status = 'Pending';
+              String displayStatus = status == 'Pending' ? 'Pending Review' : status;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -51,7 +52,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
                             child: Text(data['companyName'] ?? 'Unknown Company', 
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
-                          _buildStatusChip(status),
+                          _buildStatusChip(displayStatus),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -81,12 +82,12 @@ class OrganizerApplicationsScreen extends StatelessWidget {
                         children: [
                           if (status == 'Pending') ...[
                             TextButton(
-                              onPressed: () => dbService.updateApplication(docId, {'status': 'Rejected'}),
+                              onPressed: () => dbService.reviewApplication(docId, 'Rejected'),
                               child: const Text("Reject", style: TextStyle(color: Colors.red)),
                             ),
                             const SizedBox(width: 8),
                             ElevatedButton(
-                              onPressed: () => dbService.updateApplication(docId, {'status': 'Approved'}),
+                              onPressed: () => dbService.reviewApplication(docId, 'Approved'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue, 
                                 foregroundColor: Colors.white,
@@ -95,7 +96,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
                               child: const Text("Approve"),
                             ),
                           ] else ...[
-                            Text("Action taken: $status", style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                            Text("Status: $displayStatus", style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
                           ]
                         ],
                       )
@@ -116,7 +117,7 @@ class OrganizerApplicationsScreen extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'approved': color = Colors.green; break;
       case 'rejected': color = Colors.red; break;
-      case 'pending': color = Colors.orange; break;
+      case 'pending review': color = Colors.orange; break;
       default: color = Colors.grey;
     }
     return Container(

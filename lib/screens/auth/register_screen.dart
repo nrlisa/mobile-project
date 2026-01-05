@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/db_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,10 +14,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _companyNameController = TextEditingController();
+  final _companyDescController = TextEditingController();
   
   // Default role is set to exhibitor [Inference]
   String _selectedRole = 'exhibitor'; 
-  final AuthService _authService = AuthService();
+  final DbService _dbService = DbService();
   bool _isLoading = false;
 
   void _handleRegister() async {
@@ -30,28 +33,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (_selectedRole == 'exhibitor' && 
+       (_companyNameController.text.isEmpty || _companyDescController.text.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Company details are required for exhibitors"))
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // This call triggers the logic to create the User Auth and the Firestore document [Inference]
-    String? error = await _authService.register(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-      name: _nameController.text.trim(),
-      role: _selectedRole, // Passes 'organizer', 'exhibitor', or 'admin' [Inference]
-    );
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (error == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Account Created! Please Login."))
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(_nameController.text.trim());
+        
+        await _dbService.createUserProfile(
+          userCredential.user!,
+          role: _selectedRole,
+          companyName: _selectedRole == 'exhibitor' ? _companyNameController.text.trim() : '',
+          companyDescription: _selectedRole == 'exhibitor' ? _companyDescController.text.trim() : '',
         );
-        context.pop(); // Returns to Login Screen [Inference]
-      } else {
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Account Created! Please Login."))
+          );
+          context.pop(); // Returns to Login Screen [Inference]
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red)
+          SnackBar(content: Text(e.message ?? "Registration Failed"), backgroundColor: Colors.red)
         );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -103,7 +131,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               )
             ),
             const SizedBox(height: 16),
-            
+
             // Dropdown to select the specific user role [Inference]
             DropdownButtonFormField<String>(
               initialValue: _selectedRole, 
@@ -119,6 +147,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onChanged: (val) => setState(() => _selectedRole = val!),
             ),
             
+            if (_selectedRole == 'exhibitor') ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(10),
+                color: Colors.blue[50],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Company Details (Auto-filled for bookings)", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _companyNameController,
+                      decoration: const InputDecoration(labelText: "Company Name", border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _companyDescController,
+                      decoration: const InputDecoration(labelText: "Company Description", border: OutlineInputBorder()),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 32),
             
             _isLoading

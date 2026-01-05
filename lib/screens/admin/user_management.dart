@@ -30,9 +30,10 @@ class UserManagementScreen extends StatelessWidget {
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   columnWidths: const {
                     0: FlexColumnWidth(1.2), // Name
-                    1: FlexColumnWidth(2.0), // Email
-                    2: FlexColumnWidth(1.1), // Role
-                    3: FixedColumnWidth(85), // Actions
+                    1: FlexColumnWidth(1.5), // Email
+                    2: FlexColumnWidth(0.8), // Role
+                    3: FlexColumnWidth(1.2), // Category
+                    4: FixedColumnWidth(85), // Actions
                   },
                   children: [
                     const TableRow(
@@ -41,6 +42,7 @@ class UserManagementScreen extends StatelessWidget {
                         Padding(padding: EdgeInsets.all(6), child: Text("Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                         Padding(padding: EdgeInsets.all(6), child: Text("Email", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                         Padding(padding: EdgeInsets.all(6), child: Text("Role", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Padding(padding: EdgeInsets.all(6), child: Text("Category", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                         Padding(padding: EdgeInsets.all(6), child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                       ]
                     ),
@@ -54,6 +56,7 @@ class UserManagementScreen extends StatelessWidget {
                           Padding(padding: const EdgeInsets.all(6), child: Text(data['name'] ?? 'N/A', style: const TextStyle(fontSize: 12))),
                           Padding(padding: const EdgeInsets.all(6), child: Text(data['email'] ?? 'N/A', style: const TextStyle(fontSize: 11))),
                           Padding(padding: const EdgeInsets.all(6), child: Text(data['role'] ?? 'guest', style: const TextStyle(fontSize: 12))),
+                          Padding(padding: const EdgeInsets.all(6), child: Text(data['companyCategory'] ?? '-', style: const TextStyle(fontSize: 12))),
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
@@ -92,19 +95,31 @@ class UserManagementScreen extends StatelessWidget {
   // ... (Keep existing _showEditUserDialog and _confirmDelete methods)
   void _showEditUserDialog(BuildContext context, String id, Map data) {
     String selectedRole = data['role'] ?? 'guest';
+    final categoryController = TextEditingController(text: data['companyCategory'] ?? '');
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text("Edit Role for ${data['name']}"),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
-            return DropdownButton<String>(
-              value: selectedRole,
-              isExpanded: true,
-              items: ['admin', 'organizer', 'exhibitor', 'guest']
-                  .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                  .toList(),
-              onChanged: (val) => setDialogState(() => selectedRole = val!),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButton<String>(
+                  value: selectedRole,
+                  isExpanded: true,
+                  items: ['admin', 'organizer', 'exhibitor', 'guest']
+                      .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                      .toList(),
+                  onChanged: (val) => setDialogState(() => selectedRole = val!),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: categoryController,
+                  decoration: const InputDecoration(labelText: "Company Category"),
+                ),
+              ],
             );
           },
         ),
@@ -112,7 +127,10 @@ class UserManagementScreen extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
-              await _dbService.updateUser(id, {'role': selectedRole});
+              await _dbService.updateUser(id, {
+                'role': selectedRole,
+                'companyCategory': categoryController.text,
+              });
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text("Update"),

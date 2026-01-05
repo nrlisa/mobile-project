@@ -1,9 +1,7 @@
-import 'dart:io' as io;
-import 'dart:convert'; // Required for base64
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/db_service.dart';
+import 'admin_floor_plan_widget.dart';
 
 class AdminFloorplanScreen extends StatefulWidget {
   final String eventId;
@@ -148,7 +146,12 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(11),
-                        child: _buildImage(),
+                        child: _imageUrl == null || _imageUrl!.isEmpty
+                            ? const Center(child: Text("No Map Available"))
+                            : AdminFloorPlanWidget(
+                                eventId: widget.eventId,
+                                floorPlanUrl: _imageUrl!,
+                              ),
                       ),
                     ),
                   ),
@@ -179,29 +182,5 @@ class _AdminFloorplanScreenState extends State<AdminFloorplanScreen> {
               ),
             ),
     );
-  }
-
-  Widget _buildImage() {
-    if (_imageUrl == null || _imageUrl!.isEmpty) {
-      return const Center(child: Text("No Map Available"));
-    }
-
-    // Displays the Base64 image data stored in Firestore
-    if (_imageUrl!.startsWith('data:image')) {
-      try {
-        final base64String = _imageUrl!.split(',').last.replaceAll(RegExp(r'\s+'), '');
-        return Image.memory(
-          base64Decode(base64String),
-          fit: BoxFit.contain,
-        );
-      } catch (e) {
-        return const Center(child: Icon(Icons.broken_image, color: Colors.red));
-      }
-    }
-
-    // Fallback for network or file paths
-    return kIsWeb || _imageUrl!.startsWith('http')
-        ? Image.network(_imageUrl!, fit: BoxFit.contain)
-        : Image.file(io.File(_imageUrl!), fit: BoxFit.contain);
   }
 }

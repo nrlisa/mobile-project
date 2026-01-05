@@ -50,7 +50,7 @@ class ExhibitorDashboard extends StatelessWidget {
               iconColor: const Color(0xFF2E5BFF), // Deeper blue
               bgColor: const Color(0xFF2E5BFF).withValues(alpha: 0.1),
               // Navigates to the flow where exhibitors pick an event
-              onTap: () => context.push('/exhibitor/flow'), 
+              onTap: () => context.push('/exhibitor/events'), 
             ),
             
             const SizedBox(height: 16),

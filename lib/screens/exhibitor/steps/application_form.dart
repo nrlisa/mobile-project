@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../services/db_service.dart';
 
 class ApplicationForm extends StatefulWidget {
   final VoidCallback onBack;
@@ -21,6 +23,8 @@ class _ApplicationFormState extends State<ApplicationForm> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController(); // Added for Description
   final _profileController = TextEditingController(); // Added for Exhibit Profile
+  String? _selectedCategory;
+  final List<String> _categories = ['Technology', 'Food & Beverage', 'Healthcare', 'Automotive', 'Fashion', 'Education', 'Other'];
 
   // State for Add-ons
   final List<Map<String, dynamic>> _addons = [
@@ -29,6 +33,29 @@ class _ApplicationFormState extends State<ApplicationForm> {
     {'name': 'Electric Power Point', 'price': 100.0, 'selected': false},
     {'name': 'LED Spotlight', 'price': 80.0, 'selected': false},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillUserData();
+  }
+
+  Future<void> _prefillUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final profile = await DbService().getUserProfile(user.uid);
+      if (mounted) {
+        setState(() {
+          if (_nameController.text.isEmpty) _nameController.text = profile['companyName'] ?? '';
+          if (_descController.text.isEmpty) _descController.text = profile['companyDescription'] ?? '';
+          // Auto-select category if available
+          if (profile['companyCategory'] != null && _categories.contains(profile['companyCategory'])) {
+            _selectedCategory = profile['companyCategory'];
+          }
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -45,6 +72,7 @@ class _ApplicationFormState extends State<ApplicationForm> {
           'companyName': _nameController.text,
           'description': _descController.text, // Added to data map
           'exhibitProfile': _profileController.text, // Added to data map
+          'category': _selectedCategory, // Pass selected category
         },
         'addons': _addons.where((a) => a['selected'] == true).toList(),
       });
@@ -70,6 +98,17 @@ class _ApplicationFormState extends State<ApplicationForm> {
               decoration: _buildInputDecoration("Company Name"),
               validator: (v) => v!.isEmpty ? "Required" : null,
             ),
+            const SizedBox(height: 15),
+
+            // Company Category
+            DropdownButtonFormField<String>(
+              initialValue: _selectedCategory,
+              decoration: _buildInputDecoration("Company Category"),
+              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              onChanged: (val) => setState(() => _selectedCategory = val),
+              validator: (v) => v == null ? "Please select a category" : null,
+            ),
+
             const SizedBox(height: 15),
 
             // Company Description (New Field)

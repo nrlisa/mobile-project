@@ -75,6 +75,18 @@ class AdminDashboard extends StatelessWidget {
               bgColor: Colors.purple.withValues(alpha: 0.1),
               onTap: () => context.go('/admin/floorplan'),
             ),
+            const SizedBox(height: 16),
+
+            // 4. Reservations Management
+            _buildDashboardCard(
+              context,
+              title: "Reservations",
+              subtitle: "View, approve, or cancel exhibitor bookings.",
+              icon: Icons.event_note,
+              iconColor: Colors.teal,
+              bgColor: Colors.teal.withValues(alpha: 0.1),
+              onTap: () => context.go('/admin/reservations'),
+            ),
           ],
         ),
       ),

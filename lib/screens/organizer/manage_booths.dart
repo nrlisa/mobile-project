@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
 import '../../models/event_model.dart';
@@ -88,13 +89,40 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
                       child: ExpansionTile(
                         title: Text(event.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(event.location),
-                        children: [_buildBoothSummaryTable(event.id)],
+                        children: [
+                          _buildCompetitorRuleToggle(event.id),
+                          _buildBoothSummaryTable(event.id)
+                        ],
                       ),
                     );
                   },
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildCompetitorRuleToggle(String eventId) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('events').doc(eventId).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final bool isEnabled = data?['competitorCheckEnabled'] ?? false;
+
+        return SwitchListTile(
+          title: const Text("Competitor Adjacency Rule", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          subtitle: const Text("Prevent competitors from booking adjacent booths", style: TextStyle(fontSize: 12)),
+          value: isEnabled,
+          activeThumbColor: Colors.blue,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          onChanged: (val) {
+            FirebaseFirestore.instance.collection('events').doc(eventId).update({
+              'competitorCheckEnabled': val,
+            });
+          },
+        );
+      },
     );
   }
 

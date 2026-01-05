@@ -1,280 +1,111 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/db_service.dart';
-import '../../widgets/progress_stepper.dart'; 
-import 'steps/booth_selection.dart'; // Import your booth selection widget
-import 'steps/application_form.dart'; // Import for step 3
-import 'steps/review_application.dart'; // Import for step 4
-import 'steps/payment_step.dart'; // Import for step 5
+import '../../models/booth.dart';
+import 'steps/booth_selection.dart';
+import 'steps/application_form.dart';
 
 class ApplicationFlowScreen extends StatefulWidget {
-  const ApplicationFlowScreen({super.key});
+  final String? eventId;
+
+  const ApplicationFlowScreen({super.key, this.eventId});
 
   @override
   State<ApplicationFlowScreen> createState() => _ApplicationFlowScreenState();
 }
 
 class _ApplicationFlowScreenState extends State<ApplicationFlowScreen> {
+  int _currentStep = 0;
+  late String _eventId;
+  String _eventName = "Loading...";
+  Booth? _selectedBooth;
   final DbService _dbService = DbService();
-  late Future<List<Map<String, dynamic>>> _eventsFuture;
-  
-  // State variables to hold user selections
-  String? _selectedEventId;
-  String? _selectedEventName;
-  String? _selectedBoothId;
-  Map<String, dynamic>? _applicationData;
-  String? _createdApplicationId; // To store ID after review submission
-  double _finalAmount = 0.0; // To pass to payment
-
-  int _currentStep = 0; 
 
   @override
   void initState() {
     super.initState();
-    _eventsFuture = _dbService.getEvents();
+    _eventId = widget.eventId ?? '';
+    if (_eventId.isNotEmpty) {
+      _fetchEventDetails();
+    }
+  }
+
+  Future<void> _fetchEventDetails() async {
+    try {
+      final eventData = await _dbService.getEventData(_eventId);
+      if (mounted) {
+        setState(() {
+          _eventName = eventData['name'] ?? 'Unknown Event';
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching event details: $e");
+    }
+  }
+
+  void _onBoothSelected(Booth booth) {
+    setState(() {
+      _selectedBooth = booth;
+      _currentStep = 1;
+    });
+  }
+
+  void _onFormSubmitted(Map<String, dynamic> formData) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && _selectedBooth != null) {
+      try {
+        // Calculate total amount including addons
+        double total = _selectedBooth!.price;
+        final addons = formData['addons'] as List<dynamic>? ?? [];
+        for (var addon in addons) {
+          total += (addon['price'] as num).toDouble();
+        }
+
+        await _dbService.submitApplication(
+          userId: user.uid,
+          eventName: _eventName,
+          eventId: _eventId,
+          boothId: _selectedBooth!.id,
+          boothNumber: _selectedBooth!.boothNumber,
+          eventDate: "Upcoming", 
+          applicationData: formData,
+          totalAmount: total,
+        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Application Submitted Successfully!")));
+          context.go('/exhibitor/my-applications');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_eventId.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Error")),
+        body: const Center(child: Text("No Event ID provided. Please select an event first.")),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        // Dynamic Title
-        title: Text(_getAppBarTitle()),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: Colors.black,
-      ),
-      body: Column(
-        children: [
-          // 1. Top Stepper
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: ProgressStepper(currentStep: _currentStep),
-          ),
-
-          // 2. Dynamic Body Content based on _currentStep
-          Expanded(
-            child: _buildCurrentStepContent(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getAppBarTitle() {
-    switch (_currentStep) {
-      case 0: return "Select Event";
-      case 1: return "Select Booth";
-      case 2: return "Application Form";
-      case 3: return "Review & Submit";
-      case 4: return "Payment";
-      default: return "Application Flow";
-    }
-  }
-
-  Widget _buildCurrentStepContent() {
-    switch (_currentStep) {
-      case 0:
-        return _buildEventSelectionStep();
-      case 1:
-        return BoothSelection(
-          onBack: () => setState(() => _currentStep = 0),
-          onBoothSelected: (booth) {
-            setState(() {
-              _selectedBoothId = booth.id;
-              _finalAmount = booth.price;
-              _currentStep = 2; // Move to Application Form (Step 3)
-            });
-          }, eventId: _selectedEventId ?? '',
-        );
-      case 2:
-        return ApplicationForm(
-          initialData: _applicationData,
-          onBack: () => setState(() => _currentStep = 1),
-          onFormSubmitted: (data) {
-            setState(() {
-              _applicationData = data;
-              _currentStep = 3; // Move to Review
-            });
-          },
-        );
-      case 3:
-        return ReviewApplication(
-          eventId: _selectedEventId ?? '',
-          eventName: _selectedEventName ?? 'Event',
-          boothId: _selectedBoothId ?? '',
-          formData: _applicationData ?? {},
-          onBack: () => setState(() => _currentStep = 2),
-          onSubmit: (appId, amount) {
-            setState(() {
-              _createdApplicationId = appId;
-              _finalAmount = amount;
-              _currentStep = 4; 
-            });
-          },
-        );
-      case 4:
-        return PaymentStep(
-          applicationId: _createdApplicationId ?? '',
-          amount: _finalAmount,
-          onPaymentSuccess: () {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Payment Successful! Application Submitted.")));
-            context.go('/exhibitor'); // Go back to dashboard
-          },
-        );
-      default:
-        return const Center(child: Text("Error: Step not found"));
-    }
-  }
-
-  Widget _buildEventSelectionStep() {
-    return Column(
-      children: [
-        // Search Bar
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: "Search event...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
+      appBar: AppBar(title: Text(_currentStep == 0 ? "Step 1: Select Booth" : "Step 2: Application Form")),
+      body: _currentStep == 0
+          ? BoothSelection(
+              eventId: _eventId,
+              onBoothSelected: _onBoothSelected,
+              onBack: () => context.pop(),
+            )
+          : ApplicationForm(
+              onBack: () => setState(() => _currentStep = 0),
+              onFormSubmitted: _onFormSubmitted,
             ),
-          ),
-        ),
-
-        // Event List from Database
-        Expanded(
-          child: FutureBuilder<List<Map<String, dynamic>>>(
-            future: _eventsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text("No events available."));
-              }
-
-              return ListView.builder(
-                itemCount: snapshot.data!.length,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemBuilder: (context, index) {
-                  var event = snapshot.data![index];
-                  bool isSelected = _selectedEventId == event['id'];
-
-                  // Parse Dates manually since we are using Map
-                  String dateText = "Date TBD";
-                  if (event['startDate'] != null && event['endDate'] != null) {
-                    try {
-                      DateTime start = (event['startDate'] is Timestamp) 
-                          ? (event['startDate'] as Timestamp).toDate() 
-                          : DateTime.parse(event['startDate'].toString());
-                      DateTime end = (event['endDate'] is Timestamp) 
-                          ? (event['endDate'] as Timestamp).toDate() 
-                          : DateTime.parse(event['endDate'].toString());
-                      dateText = "${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}";
-                    } catch (_) {}
-                  }
-
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedEventId = event['id'];
-                        _selectedEventName = event['name'];
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.blue.withValues(alpha: 0.1) : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? Colors.blue : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: Colors.white,
-                            child: Icon(Icons.event, color: Colors.black),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  event['name'] ?? 'Event Name',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                Text(
-                                  event['location'] ?? 'Location',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      dateText,
-                                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-
-        // Navigation Buttons for Step 0
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: () => context.pop(),
-                child: const Text("BACK", style: TextStyle(color: Colors.grey)),
-              ),
-              ElevatedButton(
-                onPressed: _selectedEventId == null 
-                  ? null 
-                  : () {
-                    setState(() {
-                      _currentStep = 1; // Move to Booth Selection
-                    });
-                  },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                ),
-                child: const Text("NEXT"),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

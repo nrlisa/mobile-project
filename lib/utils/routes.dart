@@ -13,6 +13,7 @@ import '../screens/guest/guest_floorplan_viewer.dart';
 import '../screens/exhibitor/exhibitor_dashboard.dart';
 // <--- Check this file specifically
 import '../screens/exhibitor/my_applications.dart';
+import '../screens/exhibitor/steps/event_selection.dart';
 
 // ORGANIZER IMPORTS
 import '../screens/organizer/organizer_dashboard.dart';
@@ -27,6 +28,7 @@ import '../screens/admin/admin_dashboard.dart';
 import '../screens/admin/user_management.dart';
 import '../screens/admin/global_exhibitions.dart';
 import '../screens/admin/admin_floorplan.dart';
+import '../screens/admin/admin_reservations.dart';
 
 final GoRouter router = GoRouter(
   initialLocation: '/guest', 
@@ -84,9 +86,22 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const ExhibitorDashboard(),
       routes: [
         GoRoute(
+          path: 'events',
+          builder: (context, state) => Scaffold(
+            appBar: AppBar(title: const Text("Select Event")),
+            body: EventSelection(
+              onEventSelected: (event) => context.push('/exhibitor/flow', extra: {'eventId': event.id}),
+            ),
+          ),
+        ),
+        GoRoute(
           path: '/flow',
           // Ensure this line uses the EXACT class name defined in application_flow_screen.dart
-          builder: (context, state) => const ApplicationFlowScreen(),
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            final eventId = extra?['eventId'] as String?;
+            return ApplicationFlowScreen(eventId: eventId);
+          },
         ),
         GoRoute(
           path: 'my-applications',
@@ -152,6 +167,10 @@ final GoRouter router = GoRouter(
               eventName: args['eventName'],
             );
           },
+        ),
+        GoRoute(
+          path: 'reservations',
+          builder: (context, state) => AdminReservationsScreen(),
         ),
       ],
     ),
