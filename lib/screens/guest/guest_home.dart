@@ -141,7 +141,12 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          onTap: () => context.push('/guest/details/${event.id}'),
+          onTap: () {
+            context.push(
+              '/guest/details/${event.id}',
+              extra: {'eventName': event.name},
+            );
+          },
           borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.all(20.0),

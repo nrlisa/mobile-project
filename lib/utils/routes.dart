@@ -6,7 +6,6 @@ import 'package:project3_lab04_nurlisa_52215124595/screens/exhibitor/exhibitor_f
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/guest/guest_home.dart';
-import '../screens/guest/event_details.dart';
 import '../screens/guest/guest_floorplan_viewer.dart'; 
 
 // EXHIBITOR IMPORTS
@@ -64,7 +63,12 @@ final GoRouter router = GoRouter(
       path: '/guest/details/:eventId',
       builder: (context, state) {
         final id = state.pathParameters['eventId'] ?? '';
-        return EventDetailsScreen(eventId: id);
+        final extra = state.extra as Map<String, dynamic>?;
+        final eventName = extra?['eventName'] as String? ?? "Event Details";
+        return GuestFloorplanViewer(
+          eventId: id,
+          eventName: eventName,
+        );
       },
     ),
 
