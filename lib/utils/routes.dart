@@ -100,7 +100,6 @@ final GoRouter router = GoRouter(
         ),
         GoRoute(
           path: '/flow',
-          // Ensure this line uses the EXACT class name defined in application_flow_screen.dart
           builder: (context, state) {
             final extra = state.extra as Map<String, dynamic>?;
             final eventId = extra?['eventId'] as String?;

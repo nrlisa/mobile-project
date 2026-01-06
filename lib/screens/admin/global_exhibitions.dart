@@ -14,7 +14,6 @@ class GlobalExhibitionsScreen extends StatefulWidget {
 class _GlobalExhibitionsScreenState extends State<GlobalExhibitionsScreen> {
   final DbService _dbService = DbService();
 
-  // Function to refresh UI after deletion or update
   void _refresh() {
     setState(() {});
   }

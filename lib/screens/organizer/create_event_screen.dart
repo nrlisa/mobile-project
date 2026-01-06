@@ -138,7 +138,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _pickDate(true),
-                      // CHANGED: Use _formatDate helper instead of DateFormat
                       child: Text(_startDate == null ? "Start Date" : _formatDate(_startDate!)),
                     ),
                   ),
@@ -146,7 +145,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _pickDate(false),
-                      // CHANGED: Use _formatDate helper instead of DateFormat
                       child: Text(_endDate == null ? "End Date" : _formatDate(_endDate!)),
                     ),
                   ),

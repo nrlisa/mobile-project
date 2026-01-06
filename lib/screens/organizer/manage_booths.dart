@@ -6,7 +6,7 @@ import '../../models/event_model.dart';
 import '../../models/booth.dart';
 
 class ManageBoothsScreen extends StatefulWidget {
-  final String eventId; // Optional, if filtering by specific event
+  final String eventId; 
 
   const ManageBoothsScreen({super.key, this.eventId = ''});
 
@@ -48,7 +48,6 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
         title: const Text("Booth Inventory Summary"),
         centerTitle: true,
         actions: [
-          // Display ID to verify against Database
           Center(child: Text(_organizerIds.isNotEmpty ? _organizerIds.first : "...", style: const TextStyle(color: Colors.black, fontSize: 10))),
           const SizedBox(width: 16),
         ],
@@ -70,7 +69,6 @@ class _ManageBoothsScreenState extends State<ManageBoothsScreen> {
                   return const Center(child: Text("No events found."));
                 }
 
-                // Filter if eventId is passed
                 final events = widget.eventId.isNotEmpty
                     ? allEvents.where((e) => e.id == widget.eventId).toList()
                     : allEvents;

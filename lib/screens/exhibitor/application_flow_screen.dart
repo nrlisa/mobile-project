@@ -37,7 +37,6 @@ class _BoothSelectionState extends State<BoothSelection> {
 
         final booths = snapshot.data ?? [];
 
-        // Filtering based on real Firebase data
         final hallABooths = booths.where((b) => b.size == 'Small' || b.boothNumber.startsWith('S')).toList();
         final hallBBooths = booths.where((b) => b.size == 'Medium' || b.boothNumber.startsWith('M')).toList();
         final hallCBooths = booths.where((b) => b.size == 'Large' || b.boothNumber.startsWith('L')).toList();

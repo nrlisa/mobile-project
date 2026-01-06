@@ -70,9 +70,9 @@ class _ApplicationFormState extends State<ApplicationForm> {
       widget.onFormSubmitted({
         'details': {
           'companyName': _nameController.text,
-          'description': _descController.text, // Added to data map
-          'exhibitProfile': _profileController.text, // Added to data map
-          'category': _selectedCategory, // Pass selected category
+          'description': _descController.text, 
+          'exhibitProfile': _profileController.text, 
+          'category': _selectedCategory, 
         },
         'addons': _addons.where((a) => a['selected'] == true).toList(),
       });

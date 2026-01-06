@@ -430,10 +430,7 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
               );
 
               if (_isUpdating) {
-                // For update, we might want to preserve isPublished status if we fetched it, 
-                // but here we are simplifying. Ideally, we fetch current status or pass it.
-                // For now, simple update.
-                await _dbService.addEvent(newEvent); // addEvent uses set() which overwrites.
+                await _dbService.addEvent(newEvent); 
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Event Updated")));
               } else {
@@ -481,7 +478,6 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
                  return;
               }
 
-              // This generates booths AND clears old ones (fixing data inconsistency)
               await _dbService.createBoothsBatch(
                 _activeEventId,
                 _selectedSize, 
@@ -503,7 +499,6 @@ class _ManageExhibitionsScreenState extends State<ManageExhibitionsScreen> {
           const Text("Current Inventory:", style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
 
-          // LIVE INVENTORY TABLE (Matches Page 6 Requirement)
           StreamBuilder(
             stream: _dbService.getBoothsStream(_activeEventId),
             builder: (context, snapshot) {

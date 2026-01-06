@@ -9,7 +9,6 @@ class FloorplanUploadScreen extends StatefulWidget {
 }
 
 class _FloorplanUploadScreenState extends State<FloorplanUploadScreen> {
-  // Mock list of booths that have been identified on the map (like Page 20)
   final List<String> _identifiedBooths = ['Booth A', 'Booth B', 'Booth C'];
 
   @override
@@ -30,10 +29,8 @@ class _FloorplanUploadScreenState extends State<FloorplanUploadScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. THE UPLOAD BOX (Dotted Style)
             GestureDetector(
               onTap: () {
-                // In real app: Open File Picker
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Open File Picker...")));
               },
               child: Container(
@@ -42,8 +39,6 @@ class _FloorplanUploadScreenState extends State<FloorplanUploadScreen> {
                   color: const Color(0xFFF8F9FA),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.blue.shade200, width: 2, style: BorderStyle.solid), 
-                  // Note: Flutter needs a package for true 'dotted' borders, 
-                  // but a light blue solid border looks very close to standard upload UIs.
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -60,7 +55,6 @@ class _FloorplanUploadScreenState extends State<FloorplanUploadScreen> {
 
             const SizedBox(height: 30),
 
-            // 2. LIST OF MAPPED BOOTHS (Matches Page 20 list)
             const Text("Detected Booths:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 10),
             

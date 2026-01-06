@@ -26,7 +26,6 @@ class UserManagementScreen extends StatelessWidget {
               children: [
                 Table(
                   border: TableBorder.all(color: Colors.grey.shade300),
-                  // FIXED: Move verticalAlignment here to apply to all rows
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   columnWidths: const {
                     0: FlexColumnWidth(1.2), // Name
@@ -50,7 +49,6 @@ class UserManagementScreen extends StatelessWidget {
                       final data = doc.data() as Map<String, dynamic>;
                       final String userId = doc.id;
 
-                      // FIXED: Removed 'verticalAlignment' from TableRow
                       return TableRow(
                         children: [
                           Padding(padding: const EdgeInsets.all(6), child: Text(data['name'] ?? 'N/A', style: const TextStyle(fontSize: 12))),
@@ -87,7 +85,6 @@ class UserManagementScreen extends StatelessWidget {
     );
   }
 
-  // ... (Keep existing _showEditUserDialog and _confirmDelete methods)
   void _showEditUserDialog(BuildContext context, String id, Map data) {
     String selectedRole = data['role'] ?? 'guest';
     final categoryController = TextEditingController(text: data['companyCategory'] ?? '');

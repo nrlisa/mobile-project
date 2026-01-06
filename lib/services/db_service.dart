@@ -73,7 +73,7 @@ class DbService {
     try {
       await _firestore.collection('users').doc(userId).update(userData);
 
-      // NEW: Cascade update if companyCategory is changed
+      // NEW:  update if companyCategory is changed
       if (userData.containsKey('companyCategory')) {
         final newCategory = userData['companyCategory'];
         
@@ -268,8 +268,6 @@ class DbService {
     }
   }
 
-  // UPDATED: Appends booths instead of overwriting.
-  // Checks for existing booths of the same size to continue numbering correctly.
   Future<void> createBoothsBatch(String eventId, String size, double price, int count) async {
     try {
       // 0. Fetch Event to get Organizer ID
@@ -279,8 +277,6 @@ class DbService {
       final collectionRef = _firestore.collection('events').doc(eventId).collection('booths');
 
       // 1. DETERMINE STARTING NUMBER
-      // We query how many booths of this specific 'size' already exist.
-      // This prevents duplicates if you add more booths later.
       final existingBoothsSnapshot = await collectionRef
           .where('size', isEqualTo: size)
           .get();
@@ -290,7 +286,6 @@ class DbService {
       // 2. CREATE NEW BOOTHS (Batch Write)
       final createBatch = _firestore.batch();
       
-      // Determine prefix: S=Small, M=Medium, L=Large
       String prefix = size.isNotEmpty ? size.substring(0, 1).toUpperCase() : "B";
       
       for (int i = 0; i < count; i++) {
@@ -298,7 +293,7 @@ class DbService {
         final docRef = collectionRef.doc();
         
         createBatch.set(docRef, {
-          'boothNumber': '$prefix-$currentNumber', // e.g., S-1... or S-11 if appending
+          'boothNumber': '$prefix-$currentNumber', 
           'size': size,
           'price': price, 
           'status': 'available',
@@ -316,7 +311,6 @@ class DbService {
     }
   }
 
-  // NEW: Update Booth Coordinates (for Interactive Floor Plan)
   Future<void> updateBoothCoordinates(String eventId, String boothId, double x, double y, double width, double height) async {
     try {
       await _firestore

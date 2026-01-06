@@ -23,7 +23,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
   bool _isPublish = false;
   bool _isSaving = false;
 
-  // Function to select dates (Wireframe Page 7: Start/End Date)
   Future<void> _selectDate(BuildContext context, bool isStart) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -43,36 +42,34 @@ class _AddEventScreenState extends State<AddEventScreen> {
     }
   }
 
-  // PHASE 2: Logic to insert new events into the database
   Future<void> _saveExhibition() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
     try {
-      // Ensure we have the current Organizer ID
+     
       final String organizerId = AuthService().currentUser?.uid ?? "unknown";
       
       // Creating the Event Container
       final newEvent = EventModel(
-        id: const Uuid().v4(), // Column: EventID
-        name: _nameController.text.trim(), // Column: Name
-        // Column: Date (Formated as Range per Page 21) [cite: 278]
+        id: const Uuid().v4(), 
+        name: _nameController.text.trim(), 
         date: "${_startDate.day}/${_startDate.month}/${_startDate.year} - ${_endDate.day}/${_endDate.month}/${_endDate.year}",
-        location: _locationController.text.trim(), // Column: Location
+        location: _locationController.text.trim(), 
         description: _descController.text.trim(),
-        isPublished: _isPublish, // Controls visibility on Guest Page
+        isPublished: _isPublish, 
         organizerId: organizerId,
       );
 
-      // Save to Firebase using the fixed DbService
+      
       await DbService().addEvent(newEvent);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("✅ Exhibition Saved to Firebase!")),
         );
-        context.pop(); // Returns to Manage Exhibitions (Page 6)
+        context.pop(); 
       }
     } catch (e) {
       if (mounted) {
@@ -89,7 +86,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Add Exhibition"), // Page 7 Title [cite: 47]
+        title: const Text("Add Exhibition"), 
         centerTitle: true,
       ),
       body: Form(
@@ -99,7 +96,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Wireframe Page 7: Exhibition Name Input [cite: 52]
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Exhibition Name"),
@@ -107,7 +103,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
               const SizedBox(height: 20),
               
-              // Wireframe Page 7: Location Input [cite: 56]
               TextFormField(
                 controller: _locationController,
                 decoration: const InputDecoration(labelText: "Location"),
@@ -115,7 +110,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Wireframe Page 7: Date Selection [cite: 54, 55]
               ListTile(
                 title: const Text("Start Date"),
                 subtitle: Text("${_startDate.day}/${_startDate.month}/${_startDate.year}"),
@@ -129,7 +123,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 onTap: () => _selectDate(context, false),
               ),
               
-              // Wireframe Page 6: Publish Toggle [cite: 44]
               SwitchListTile(
                 title: const Text("Publish Now?"),
                 subtitle: const Text("If OFF, guests cannot see this event."),
@@ -146,7 +139,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       Expanded(
                         child: TextButton(
                           onPressed: () => context.pop(),
-                          child: const Text("Cancel"), // Page 7 Cancel [cite: 58]
+                          child: const Text("Cancel"), 
                         ),
                       ),
                       Expanded(

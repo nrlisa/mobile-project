@@ -32,7 +32,6 @@ class DbServiceLegacy {
     return docRef.id;
   }
 
-  // (Optional) Generate text-based booths if not using the visual mapper
   Future<void> generateBooths(String eventId, int count) async {
     String uid = _auth.currentUser!.uid;
     final batch = _db.batch();
@@ -112,8 +111,6 @@ class DbServiceLegacy {
       }).toList();
     } 
     
-    // 2. If no collection, maybe fallback to parsing the visual layout (optional)
-    // For now, return empty to prevent crashes
     return [];
   }
 
@@ -121,7 +118,6 @@ class DbServiceLegacy {
   // 4. EXHIBITOR: BOOKING & APPLICATIONS
   // ====================================================
 
-  // RE-ADDED: Simple Book Booth (Updates status directly)
   Future<void> bookBooth(String eventId, String boothId, String userId) async {
     await _db
         .collection('events')
@@ -134,7 +130,6 @@ class DbServiceLegacy {
     });
   }
 
-  // NEW: Submit Application (Pending Approval) - Better for Project Requirements
   Future<void> submitApplication({
     required String eventId,
     required String boothId,

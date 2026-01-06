@@ -23,7 +23,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   void _handleRegister() async {
-    // Basic validation to ensure no empty strings are sent to Firebase [Inference]
     if (_emailController.text.isEmpty || 
         _passwordController.text.isEmpty || 
         _nameController.text.isEmpty) {

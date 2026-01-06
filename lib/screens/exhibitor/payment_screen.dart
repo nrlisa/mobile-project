@@ -100,7 +100,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Secure Payment")),
-      // ADDED SCROLL VIEW: Prevents "Bottom Overflow" errors
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -191,10 +190,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ],
                 ),
                 
-                // REPLACED Spacer() with SizedBox to prevent crash
                 const SizedBox(height: 50), 
                 
-                // Submit Button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _processPayment,
                   style: ElevatedButton.styleFrom(
